@@ -8,6 +8,18 @@
     integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM="
     crossorigin=""></script>
   <style>
+  .info {
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      background: white;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+  }
+  .info h4 {
+      margin: 0 0 5px;
+      color: #777;
+  }
     #map{ width: 900px; height: 500px; }
   </style>
   <style>
@@ -94,12 +106,12 @@
 
 		layer.bringToFront();
 
-		//info.update(layer.feature.properties); //we will use this in a bit.
+    info.update(layer.feature.properties)
 	}
 
   function resetHighlight(e) {
 		geojson1.resetStyle(e.target);
-		//info.update();
+		info.update();
 	}
 
   function onEachFeature(feature, layer) {
@@ -129,6 +141,21 @@
   }
 
   map.on('click', onMapClick);
+  
+  var info = L.control();
+
+  info.onAdd = function (map) {
+      this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+      this.update();
+      return this._div;
+  };
+  
+  info.update = function (edu) {
+    const contents = edu ? `<b>${edu.EdNorm} %</b><br />${edu.CountyName}` : 'Hover over a county';
+    this._div.innerHTML = `<h4>Population with Bachelor's Degree</h4>${contents}`;
+  };
+
+  info.addTo(map);
   
   const geojson1 = L.geoJson(IllinoisGJSON, {
       style,
