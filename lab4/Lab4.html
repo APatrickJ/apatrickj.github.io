@@ -1,0 +1,165 @@
+<html>
+<head>
+  <title>Illinois GeoJSON Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+     integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI="
+     crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM="
+    crossorigin=""></script>
+  <style>
+    #map{ width: 900px; height: 500px; }
+  </style>
+  <style>
+  .info {
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      background: white;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+  }
+  .info h4 {
+      margin: 0 0 5px;
+      color: #777;
+  }
+  
+  .legend { 
+  text-align: left; line-height: 18px; color: #555; 
+  } 
+  
+  .legend i { 
+  width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; 
+  }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <script type="text/javascript" src="illinois-education.js"></script>
+  <script type="text/javascript" src="illinois-second-education.js"></script>
+
+  <script>
+
+  function highlightFeature(e) {
+    var layer = e.target;
+
+    layer.setStyle({
+        weight: 5,
+        color: '#656',
+        dashArray: '',
+        fillOpacity: 0.7
+    });
+
+    layer.bringToFront();
+  }
+
+  function resetHighlight(e) {
+    geojson.resetStyle(e.target);
+  }
+
+  function zoomToFeature(e) {
+    map.fitBounds(e.target.getBounds());
+  }
+
+  //function formats the shape color based on the attribute d's value
+  function getColor(EdNorm) {
+    return EdNorm > 35.19  ? '#BD0026' :
+           EdNorm > 22.91  ? '#E31A1C' :
+           EdNorm > 12.87  ? '#FC4E2A' :
+           EdNorm > 0  ? '#FD8D3C' :
+                         '#FFEDA0';
+  }
+
+  function style(feature) {
+      return {
+          fillColor: getColor(feature.properties.EdNorm), //color by density attribute
+          weight: 0.5, //line weight
+          opacity: 1, //line opacity
+          color: 'black', //line color
+          fillOpacity: 0.7 //shape file
+      };
+  }
+
+  function highlightFeature(e) {
+		const layer = e.target;
+
+		layer.setStyle({
+			weight: 5,
+			color: 'white',
+			fillOpacity: 0.9
+		});
+
+		layer.bringToFront();
+
+		//info.update(layer.feature.properties); //we will use this in a bit.
+	}
+
+  function resetHighlight(e) {
+		geojson1.resetStyle(e.target);
+		//info.update();
+	}
+
+  function onEachFeature(feature, layer) {
+		layer.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight,
+			//click: zoomToFeature
+	  });
+  }
+
+  // initialize the map
+  var map = L.map('map').setView([40, -89], 6);
+
+  // load a tile layer
+  const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  
+  var popup = L.popup();
+
+  function onMapClick(e) {
+    popup
+        .setLatLng(e.latlng)
+        .setContent("You clicked the map at " + e.latlng.toString())
+        .openOn(map);
+  }
+
+  map.on('click', onMapClick);
+  
+  const geojson1 = L.geoJson(IllinoisGJSON, {
+      style,
+      onEachFeature //This is the important new function connection 
+    }).addTo(map);
+
+  const geojson2 = L.geoJson(IllinoisSecondEdGJSON).addTo(map);
+
+  //locates the legend in the bottom right of the map
+  var legend = L.control({position: 'bottomright'});
+  
+  //adds the legend to the map in a <div> 
+  legend.onAdd = function (map) {
+  
+  var div = L.DomUtil.create('div', 'info legend'),
+      grades = [10.5 , 17.5, 27.5],
+      labels = [];
+  
+  // loop through our EdNorm intervals and generate a label and colored square
+  for (var i = 0; i < grades.length; i++) {
+          div.innerHTML +=
+              '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+              grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+      }
+  
+      return div;
+  };
+
+  //adds the legend to the map
+  legend.addTo(map);
+
+  </script>
+</body>
+</html>
