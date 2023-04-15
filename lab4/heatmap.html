@@ -41,6 +41,7 @@
 		var latlng = layer.getLatLng();
 		var value = layer.value;
 		heatData.push([latlng.lat, latlng.lng, value]);
+    map.removeLayer(layer);
 	});
       
   var heatLayer = L.heatLayer(heatData, {
