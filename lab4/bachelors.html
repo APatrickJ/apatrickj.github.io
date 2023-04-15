@@ -1,6 +1,6 @@
 <html>
 <head>
-  <title>Illinois GeoJSON Map</title>
+  <title>Illinois Bachelor's Degree Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
      integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI="
      crossorigin=""/>
@@ -51,7 +51,6 @@
   <div id="map"></div>
 
   <script type="text/javascript" src="illinois-education.js"></script>
-  <script type="text/javascript" src="illinois-second-education.js"></script>
 
   <script>
 
@@ -161,8 +160,6 @@
       style,
       onEachFeature //This is the important new function connection 
     }).addTo(map);
-
-  const geojson2 = L.geoJson(IllinoisSecondEdGJSON).addTo(map);
 
   //locates the legend in the bottom right of the map
   var legend = L.control({position: 'bottomright'});
