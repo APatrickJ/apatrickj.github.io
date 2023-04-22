@@ -73,7 +73,7 @@
             .data(data)
             .enter()
             .append("path")
-            .attr("d", d3.symbol().type(d3.symbolStar))
+            .attr("d", d3.symbol().type(d3.symbolSquare))
             .attr("transform", function(d) { return "translate(" + (xScale(d.Severity) + 100) + "," + (yScale(d.Accidents) + 100) + ")"})
             .style("fill", "#0000CC");
         });
