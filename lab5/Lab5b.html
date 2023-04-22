@@ -72,9 +72,11 @@
             .selectAll("dot")
             .data(data)
             .enter()
-            .append("path")
-            .attr("d", d3.symbol().type(d3.symbolSquare))
-            .attr("transform", function(d) { return "translate(" + (xScale(d.Severity) + 100) + "," + (yScale(d.Accidents) + 100) + ")"})
+            .append("circle")
+            .attr("cx", d=> xScale(d.Severity))
+            .attr("cy", d=> yScale(d.Accidents))
+            .attr("r", 7)
+            .attr("transform", "translate(" + 100 + "," + 100 + ")")
             .style("fill", "#0000CC");
         });
 

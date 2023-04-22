@@ -1,3 +1,5 @@
+<!-- Based on the example in https://medium.com/@kj_schmidt/hover-effects-for-your-scatter-plot-447df80ea116 -->
+
 <!doctype html>
 <html>
 <head>
@@ -6,6 +8,17 @@
     <style>
 .myCircle:hover {
   stroke: black;
+}
+div.tooltip {
+     position: absolute;
+     text-align: center;
+     padding: .2rem;
+     background: #313639;
+     color: #f9f9f9;
+     border: 0px;
+     border-radius: 8px;
+     pointer-events: none;
+     font-size: .8rem;
 }
 </style>
 </head>
@@ -22,7 +35,7 @@
 
         // Step 4 
         var xScale = d3.scaleLinear().domain([0, 3]).range([0, width]),
-            yScale = d3.scaleLog().domain([1, 800000]).range([height, 0]);
+            yScale = d3.scaleLinear().domain([0, 800000]).range([height, 0]);
             
         var g = svg.append("g")
             .attr("transform", "translate(" + 100 + "," + 100 + ")");
@@ -62,6 +75,9 @@
         g.append("g")
          .call(d3.axisLeft(yScale));
     
+        var div = d3.select("body").append("div")
+             .attr("class", "tooltip")
+             .style("opacity", 0);
        
         //Load data and create scatter plot 
          d3.csv("data.csv", function(data) {
@@ -77,6 +93,25 @@
             .attr("cy", d=> yScale(d.Accidents))
             .attr("r", 2)
             .attr("transform", "translate(" + 100 + "," + 100 + ")")
+            .on('mouseover', function (d, i) {
+                d3.select(this).transition()
+                    .duration('100')
+                    .attr("r", 7);
+                div.transition()
+                    .duration(100)
+                    .style("opacity", 1);
+                div.html(d.Accidents)
+                   .style("left", (d3.event.pageX + 10) + "px")
+                   .style("top", (d3.event.pageY - 15) + "px");
+            })
+            .on('mouseout', function (d, i) {
+                div.transition()
+                    .duration('200')
+                    .style("opacity", 0);
+                d3.select(this).transition()
+                    .duration('200')
+                    .attr("r", 2);
+            })
             .style("fill", "#CC0000");
         });
 

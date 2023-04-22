@@ -22,7 +22,7 @@
 
         // Step 4 
         var xScale = d3.scaleLinear().domain([0, 3]).range([0, width]),
-            yScale = d3.scaleLog().domain([1, 800000]).range([height, 0]);
+            yScale = d3.scaleLinear().domain([0, 800000]).range([height, 0]);
             
         var g = svg.append("g")
             .attr("transform", "translate(" + 100 + "," + 100 + ")");
@@ -72,11 +72,9 @@
             .selectAll("dot")
             .data(data)
             .enter()
-            .append("circle")
-            .attr("cx", d=> xScale(d.Severity))
-            .attr("cy", d=> yScale(d.Accidents))
-            .attr("r", 2)
-            .attr("transform", "translate(" + 100 + "," + 100 + ")")
+            .append("path")
+            .attr("d", d3.symbol().type(d3.symbolSquare))
+            .attr("transform", function(d) { return "translate(" + (xScale(d.Severity) + 100) + "," + (yScale(d.Accidents) + 100) + ")"})
             .style("fill", "#CC0000");
         });
 
