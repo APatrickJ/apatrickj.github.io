@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>A choropleth Map with 2D Density Plots</title>
+
+	<script src="../data/GEO_JSON_Cook.js"></script>
+	<script src="../data/GEO_VARIABLES_Cook.js"></script>
+	
+	<link rel="stylesheet" href="Choropleth_2Ddensity.css" />
+	<link rel="stylesheet" href="../lib/leaflet/leaflet.css" />
+	<script src="../lib/leaflet/leaflet.js"></script>
+	<script src="../lib/plotly/plotly.min.js"></script>
+	<script src="../lib/geostats-master/lib/geostats.min.js"></script>
+</head>
+
+
+<body onload="entryPoint()">
+	
+	<h1>A choropleth Map with 2D Histogram Contour Plot</h1>
+	
+	<div id="mapContainer">
+		<div id="map" class="mapArea">
+			<div class="trace"></div>
+			<div class="map"></div>
+		</div>
+		<div id="chart" class="mapArea">
+			<div class="chart"></div>
+		</div>
+	</div>
+
+
+<script type="text/javascript">
+
+// define global variables
+var TRACE1 = "% White";
+var TRACE2 = "% Black";
+var NUMBER_OF_CLASS = 8;                                      // range: 5 ~ 9
+var CLASSIFICATION_METHOD = "Quantile"                        // Equal, Quantile or Jenks
+var COLOR_HUE = "Yellow_to_Red";                              // Red, Green or Blue
+var NO_DATA = -9999;
+var COLOR_CLASS = {
+	"Red_5"     : ["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"],
+	"Red_6"     : ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#de2d26", "#a50f15"],
+	"Red_7"     : ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"],
+	"Red_8"     : ["#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"],
+	"Red_9"     : ["#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#a50f15", "#67000d"],
+	"Green_5"   : ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"],
+	"Green_6"   : ["#edf8e9", "#c7e9c0", "#a1d99b", "#74c476", "#31a354", "#006d2c"],
+	"Green_7"   : ["#edf8e9", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#005a32"],
+	"Green_8"   : ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#005a32"],
+	"Green_9"   : ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"],	
+	"Blue_5"    : ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"],
+	"Blue_6"    : ["#eff3ff", "#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"],
+	"Blue_7"    : ["#eff3ff", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#2171b5"],
+	"Blue_8"    : ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#084594"],
+	"Blue_9"    : ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"],
+	//multi-hue
+	"Yellow_to_Red_5" : ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"],
+	"Yellow_to_Red_6" : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"],
+	"Yellow_to_Red_7" : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
+	"Yellow_to_Red_8" : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
+   	"Yellow_to_Red_9" : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"]	
+};
+// changeable global variables
+var app = {
+	"map": null,                                                     // leaflet object of map
+	"assembledGeoJSON": null,                                        // GeoJSON format with properties and geometry data
+	"intervals": null,                                               // intervals by classification
+	"colors": null,                                                  // color hue
+	"info": null,                                                    // leaflet object of info
+	"legend": null,                                                  // leaflet object of legend
+}
+// end of global variables
+
+
+
+/**
+ * entry point of this javascript
+ * it's defined by <body> tag like this: <body onload="entryPoint()">
+ */
+function entryPoint() {
+	
+	app.assembledGeoJSON = assembleGeoJSON(GEO_JSON, GEO_VARIABLES);
+	
+	app.map = draw_baseMap("map");
+	var e = document.getElementById("traceSelect");
+	var trace = e.options[e.selectedIndex].value; 
+	app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
+	app.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS]
+	draw_choroplethMap(trace);
+	
+	draw_2dDensityPlots(TRACE1, TRACE2);
+}
+
+
+/**
+ * join geoJSON and geoVariables by geoid and assemble GeoJSON and return it
+ * geoJSON: GeoJSON format with properties of geoid and geometry data
+ * geoVariables: CSV format first column of each row must be geoid
+ */
+function assembleGeoJSON(geoJSON, geoVariables) {
+	
+	var geoFeatures = {}                                             // key: geoid,  value: {geometry, properties}
+	geoJSON.features.forEach(function(row, i) {
+		geoFeatures[row.properties.geoid] = {"geometry": row.geometry, "properties": row.properties}
+	});
+	
+	var title = geoVariables[0];                                     // save 1st row to a title
+	var resultGeoJSON = {"type":"FeatureCollection", "features":[]}
+	geoVariables.forEach(function(row, i) {
+		if (i == 0) return;                                          // skip the title's row
+		var geoid = row[0];
+		if (!geoFeatures.hasOwnProperty(geoid)) return;              // skip if no geometry data in the geoJSON
+		var geoFeature = geoFeatures[geoid];
+		var feature = {"type": "Feature", "geometry": geoFeature.geometry, "properties": geoFeature.properties};
+		for (var c=1; c<title.length; c++) 
+			feature.properties[title[c]] = row[c];
+		resultGeoJSON.features.push(feature);
+	});
+	
+	return resultGeoJSON;
+}
+
+
+/**
+ * get intervals from classification
+ * method : "Equal", "Quantile" or "Jenks"
+ * nClass : number of class for classification.
+ * item   : selected variable == TRACE.
+ */
+function classification(method, nClass, item) {
+	
+	var values = [];
+	app.assembledGeoJSON.features.forEach(function(feature, i) {                  // skip if NO_DATA
+		if (feature.properties[item] != NO_DATA) values.push(feature.properties[item]);
+	});
+	
+	var serie = new geostats();
+	serie.setSerie(values);
+	var intervals = [];
+	if (method == 'Equal')      intervals = serie.getClassEqInterval(nClass);
+	if (method == 'Quantile')   intervals = serie.getClassQuantile(nClass);
+	if (method == 'Jenks')      intervals = serie.getClassJenks(nClass);
+	
+	return intervals;
+}
+
+
+/**
+ * draw a base map
+ * mDIV: id of <div> tag where to draw the map
+ * return leaflet object of map
+ */
+function draw_baseMap(mDIV) {
+
+	var traceDiv = document.getElementById(mDIV).getElementsByClassName("trace")[0];
+	var html_trace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="trace_selected()">';
+	html_trace += '<option value="' + TRACE1 + '" class="line_none">' + TRACE1 + '</option>';
+	html_trace += '<option value="' + TRACE2 + '" class="line_none">' + TRACE2 + '</option>';
+	html_trace += '</select>';
+	traceDiv.innerHTML = html_trace;
+	
+	var mapDiv = document.getElementById(mDIV).getElementsByClassName("map")[0];
+	var mbAttr = 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+		mbUrl = 'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
+
+	var grayscale   = L.tileLayer(mbUrl, {id: 'mapbox/light-v9', tileSize: 512, zoomOffset: -1, attribution: mbAttr}),
+		streets  = L.tileLayer(mbUrl, {id: 'mapbox/streets-v11', tileSize: 512, zoomOffset: -1, attribution: mbAttr});
+	
+	var mapCenter = [37.09024, -95.712891];
+	var mapZoomLevel = 4;
+	var map = L.map(mapDiv, {
+		center: mapCenter,
+		zoom: mapZoomLevel,
+		layers: [grayscale]
+	});
+	
+	map.scrollWheelZoom.disable();
+	
+	return map;	
+}
+
+
+/**
+ * this function inboked by trace select in the drop-down list
+ * update app.intervals by selected trace
+ * call the draw_choroplethMap function
+ */
+function trace_selected() {
+	
+	var e = document.getElementById("traceSelect");
+	var trace = e.options[e.selectedIndex].value;
+	app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
+	draw_choroplethMap(trace);
+}
+
+
+/**
+ * draw a choropleth map
+ * item: selected trace  
+ */
+function draw_choroplethMap(item) {
+	
+	// control that shows state info on hover
+	if (app.info != null) app.info.remove();
+	app.info = L.control();
+	app.info.onAdd = function(map) {
+		this._div = L.DomUtil.create('div', 'info');
+		this.update();
+		return this._div;
+	};
+	app.info.update = function (props) {
+		this._div.innerHTML = '<h4>' + item + '</h4>' +  (props ?
+			props.geoid + ' :&nbsp; &nbsp;' + ((props[item] == NO_DATA) ? "no data" : '<b>' + props[item] + '</b>')
+			: 'Hover over an area');
+	};
+	app.info.addTo(app.map);
+	
+	// get getOpacity
+	function getOpacity(feature) {
+		return 0.9;
+	}
+	
+	// get color depending on selected variable's value
+	function getColor(d) {
+		if (d == NO_DATA) {
+			return "#5E5E5E";
+		}
+		for (var i=app.colors.length-1; i>=0; i--) {
+			if (d >= app.intervals[i]) {
+				return app.colors[i];
+			}
+		}
+	}
+	
+	function style(feature) {
+		return {
+			weight: 0.3,
+			opacity: 1,
+			color: 'white',
+			dashArray: '1',
+			fillOpacity: getOpacity(feature),
+			fillColor: getColor(feature.properties[item])
+		};
+	}
+	
+	function highlightFeature(e) {
+		var layer = e.target;
+		layer.setStyle({
+			weight: 3,
+			color: '#00ffff',
+			dashArray: '',
+			fillOpacity: 0.9
+		});
+		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+			layer.bringToFront();
+		}
+		app.info.update(layer.feature.properties);
+	}
+	
+	function resetHighlight(e) {
+		geojson.resetStyle(e.target);
+		app.info.update();
+	}
+
+	function zoomToFeature(e) {
+		app.map.fitBounds(e.target.getBounds());
+	}
+	
+	function onEachFeature(feature, layer) {
+		layer.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight,
+			click: zoomToFeature
+		});
+	}
+	
+	var geojson = L.geoJson(app.assembledGeoJSON, {
+		style: style,
+		onEachFeature: onEachFeature
+	}).addTo(app.map);
+	
+	app.map.fitBounds(geojson.getBounds());                              // fit bounds from geojson object
+	
+	if (app.legend != null) app.legend.remove();
+	app.legend = L.control({position: 'bottomright'});
+	app.legend.onAdd = function (map) {
+		var div = L.DomUtil.create('div', 'info legend');
+		var labels = [];
+		for (var i=0; i<app.colors.length; i++)
+			labels.push('<i style="background:' + app.colors[i] + '"></i>&nbsp; &nbsp;' + app.intervals[i].toFixed(2));
+		labels.push('<i style="background:' + getColor(NO_DATA) + '"></i>&nbsp; ' + 'no data'+ '<br>');
+		div.innerHTML = labels.join('<br>');
+		return div;
+	};
+	app.legend.addTo(app.map);
+}
+
+
+/**
+ * draw a choropleth map
+ * item: selected trace  
+ */
+function draw_2dDensityPlots(t1, t2, cDIV="chart") {
+	
+	var chartDiv = document.getElementById(cDIV).getElementsByClassName("chart")[0];
+	
+	var x = [];
+	var y = [];
+	app.assembledGeoJSON.features.forEach(function(feature, i) {
+		if (feature.properties[t1] != NO_DATA) x.push(feature.properties[t1]);
+		if (feature.properties[t2] != NO_DATA) y.push(feature.properties[t2]);
+	});
+	
+	var trace1 = {
+		x: x,
+		y: y,
+		mode: 'markers',
+		name: 'points',
+		marker: {
+			color: 'rgb(102,0,0)',
+			size: 2,
+			opacity: 0.4
+		},
+		type: 'scatter'
+	};
+	var trace2 = {
+		x: x,
+		y: y,
+		name: 'density',
+		ncontours: 20,
+		colorscale: 'Hot',
+		reversescale: true,
+		showscale: false,
+		type: 'histogram2dcontour'
+	};
+	var trace3 = {
+		x: x,
+		name: 'x density',
+		marker: {color: 'rgb(102,0,0)'},
+		yaxis: 'y2',
+		type: 'histogram'
+	};
+	var trace4 = {
+		y: y,
+		name: 'y density',
+		marker: {color: 'rgb(102,0,0)'},
+		xaxis: 'x2',
+		type: 'histogram'
+	};
+	var data = [trace1, trace2, trace3, trace4];
+	var layout = {
+		//title: "2D Histogram Contour Plot with Histogram Subplots",
+		showlegend: false,
+		autosize: false,
+		width: chartDiv.clientWidth,
+		height: chartDiv.clientHeight,
+		margin: {t: 50},
+		hovermode: 'closest',
+		bargap: 0,
+		xaxis: {
+			title: t1,
+			domain: [0, 0.85],
+			showgrid: false,
+			zeroline: false
+		},
+		yaxis: {
+			title: t2,
+			domain: [0, 0.85],
+			showgrid: false,
+			zeroline: false
+		},
+		xaxis2: {
+			domain: [0.85, 1],
+			showgrid: false,
+			zeroline: false
+		},
+		yaxis2: {
+			domain: [0.85, 1],
+			showgrid: false,
+			zeroline: false
+		}
+	};
+	Plotly.newPlot(chartDiv, data, layout);
+}
+
+</script>
+
+</body>
+</html>

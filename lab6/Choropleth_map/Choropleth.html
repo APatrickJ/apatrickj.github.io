@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Choropleth Map</title>
+
+	<script src="../data/GEO_JSON_Cook.js"></script>
+	<script src="../data/GEO_VARIABLES_Cook.js"></script>
+	
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+	
+	<link rel="stylesheet" href="../lib/leaflet/leaflet.css" />
+	<script src="../lib/leaflet/leaflet.js"></script>
+	<script src="../lib/geostats-master/lib/geostats.min.js"></script>
+	<script src="../lib/d3/d3.min.js"></script>
+	
+	<style>
+		#mapContainer { height: 800px; width: 100%; }
+		.mapArea { width: 700px; height: 100%; float: left; }
+		.map { width: 700px; height: 700px; }
+		.info {
+			padding: 6px 8px;
+			font: 14px/16px Arial, Helvetica, sans-serif;
+			background: white;
+			background: rgba(255,255,255,0.8);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+		.info h4 {
+			margin: 0 0 5px;
+			color: #777;
+		}
+		.legend {
+			font-size: x-small;	
+			text-align: left;
+			line-height: 12px;
+			color: #555;
+		}
+		.legend i {
+			width: 20px;
+			height:10px;
+			float: left;
+			margin-right: 1px;
+			opacity: 0.7;
+		}
+	</style>
+</head>
+
+
+<body onload="entryPoint()">
+	
+	<div id="mapContainer">
+		<div id="map" class="mapArea">
+
+
+	<select id="traceSelect" class="traceSelect" onChange="trace_selected()">
+		<option value="% White" selected>% Hispanic</option>
+		<option value="% Black" >% Black</option>
+	</select>
+		
+			<div class="map"></div>
+		</div>
+	</div>
+
+
+<script type="text/javascript">
+
+// define global variables
+var NO_DATA = -9999;
+var TRACE = "% Hispanic";
+var NUMBER_OF_CLASS = 8;                                      // range: 5 ~ 9
+var CLASSIFICATION_METHOD = "Quantile"                        // Equal, Quantile or Jenks
+var COLOR_HUE = "Yellow_to_Red";                              // Red, Green or Blue
+var COLOR_CLASS = {
+	"Red_5"     : ["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"],
+	"Red_6"     : ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#de2d26", "#a50f15"],
+	"Red_7"     : ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"],
+	"Red_8"     : ["#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"],
+	"Red_9"     : ["#fff5f0", "#fee0d2", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#a50f15", "#67000d"],
+	"Green_5"   : ["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"],
+	"Green_6"   : ["#edf8e9", "#c7e9c0", "#a1d99b", "#74c476", "#31a354", "#006d2c"],
+	"Green_7"   : ["#edf8e9", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#005a32"],
+	"Green_8"   : ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#005a32"],
+	"Green_9"   : ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"],	
+	"Blue_5"    : ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"],
+	"Blue_6"    : ["#eff3ff", "#c6dbef", "#9ecae1", "#6baed6", "#3182bd", "#08519c"],
+	"Blue_7"    : ["#eff3ff", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#2171b5"],
+	"Blue_8"    : ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#084594"],
+	"Blue_9"    : ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"],
+	//multi-hue
+	"Yellow_to_Red_5"    : ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"],
+	"Yellow_to_Red_6"    : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#f03b20", "#bd0026"],
+	"Yellow_to_Red_7"    : ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
+	"Yellow_to_Red_8"    : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
+   	"Yellow_to_Red_9"    : ["#ffffcc" ,"#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"],	
+};
+// end of global variables
+
+var assembledGeoJSON
+var intervals
+var colors
+var map
+
+function trace_selected() {
+	var e = document.getElementById("traceSelect");
+	var trace = e.options[e.selectedIndex].value;
+	console.log(map, TRACE, assembledGeoJSON, intervals, colors)
+	TRACE = trace
+	draw_choroplethMap(map, TRACE, assembledGeoJSON, intervals, colors);
+}
+
+/**
+ * entry point of this javascript
+ * it's defined by <body> tag like this: <body onload="entryPoint()">
+ */
+function entryPoint() {	
+
+}
+
+
+/**
+ * join geoJSON and geoVariables by geoid and assemble GeoJSON and return it
+ * geoJSON: GeoJSON format with properties of geoid and geometry data
+ * geoVariables: CSV format first column of each row must be geoid
+ */
+function assembleGeoJSON(geoJSON, geoVariables) {
+	
+}
+
+
+/**
+ * get intervals from classification
+ * method : "Equal", "Quantile" or "Jenks"
+ * nClass : number of class for classification.
+ * geoJSON: GeoJSON format with properties and geometry data
+ * item   : selected variable == TRACE.
+ */
+function classification(method, nClass, geoJSON, item) {
+
+}
+
+
+/**
+ * draw a base map
+ * mDIV: id of <div> tag where to draw the map
+ * return leaflet object of map
+ */
+function draw_baseMap(mDIV="map") {
+		
+}
+
+
+/**
+ * draw a choropleth map
+ * map      : leaflet object of map
+ * item     : selected variable == TRACE.  
+ * intervals: intervals by number of class that result of classification
+ * colors   : color hue
+ */
+function draw_choroplethMap(map, item, assembledGeoJSON, intervals, colors) {
+
+}
+
+</script>
+
+</body>
+</html>
