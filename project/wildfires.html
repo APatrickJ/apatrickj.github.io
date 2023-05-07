@@ -2,7 +2,7 @@
 <html>
 <head>
 	<meta charset="utf-8" />
-	<title>US Wildfires since 2010</title>
+	<title>Western US Wildfires since 2010</title>
 
 	<script src="data/western_wildfires_since_2010.geojson.js"></script>
   <script src="state_abbreviations.js"></script>
@@ -16,8 +16,8 @@
 
 
 <body onload="entryPoint()">
-	
-	<h1>US Wildfires since 2010</h1>
+
+	<h1>Western US Wildfires since 2010</h1>
 	
 	<div id="mapContainer">
 		<div id="map" class="mapArea">
@@ -37,10 +37,16 @@
 
 // define global variables
 var TRACES = [
-    "BurnBndAc_sum", "BurnBndAc_count", "COUNTY_TOTAL_POPULATION", "FIRE_POPULATION_RATIO", "FIRE_LAND_AREA_RATIO",
+    "FIRE_COUNT",
+    "BURN_AREA",
+    "COUNTY_TOTAL_POPULATION",
+    "FIRE_COUNT_POPULATION_RATIO",
+    "FIRE_COUNT_LAND_AREA_RATIO",
+    "BURN_AREA_POPULATION_RATIO",
+    "BURN_AREA_LAND_AREA_RATIO",
 ];
-var NUMBER_OF_CLASS = 8; // range: 5 ~ 9
-var CLASSIFICATION_METHOD = "Quantile" // Equal, Quantile or Jenks
+var NUMBER_OF_CLASS = 5; // range: 5 ~ 9
+var CLASSIFICATION_METHOD = "Jenks" // Equal, Quantile or Jenks
 var COLOR_HUE = "Yellow_to_Red"; // Red, Green or Blue
 var NO_DATA = null;
 var COLOR_CLASS = {
@@ -83,10 +89,6 @@ var app = {
 
 
 
-/**
- * entry point of this javascript
- * it's defined by <body> tag like this: <body onload="entryPoint()">
- */
 function entryPoint() {
 
     app.assembledGeoJSON = assembleGeoJSON(GEO_JSON);
@@ -96,25 +98,18 @@ function entryPoint() {
     var trace = e.options[e.selectedIndex].value;
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace);
     app.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS];
-    console.log("trace: " + trace);
     draw_choroplethMap(trace);
     draw_chart(trace);
     draw_histogram(trace);
 }
 
 
-/**
- * join geoJSON and geoVariables by geoid and assemble GeoJSON and return it
- * geoJSON: GeoJSON format with properties of geoid and geometry data
- * geoVariables: CSV format first column of each row must be geoid
- */
 function assembleGeoJSON(geoJSON) {
-
     var geoFeatures = []
     geoJSON.features.forEach(function(row, i) {
         if (row.properties["COUNTY_STATE"] == null) return;
-        if (row.properties["COUNTY_STATE"].trim() == "Alaska" || row.properties["COUNTY_STATE"].trim() ==
-            "Hawaii" || row.properties["COUNTY_STATE"].trim() == "Puerto Rico") return;
+        //if (row.properties["COUNTY_STATE"].trim() == "Alaska" || row.properties["COUNTY_STATE"].trim() ==
+        //    "Hawaii" || row.properties["COUNTY_STATE"].trim() == "Puerto Rico") return;
         var feature = {
             "type": "Feature",
             "geometry": row.geometry,
@@ -130,14 +125,7 @@ function assembleGeoJSON(geoJSON) {
 }
 
 
-/**
- * get intervals from classification
- * method : "Equal", "Quantile" or "Jenks"
- * nClass : number of class for classification.
- * item   : selected variable == TRACE.
- */
 function classification(method, nClass, item) {
-
     var values = [];
     app.assembledGeoJSON.features.forEach(function(feature, i) { // skip if NO_DATA
         if (feature.properties[item] != NO_DATA) {
@@ -156,13 +144,7 @@ function classification(method, nClass, item) {
 }
 
 
-/**
- * draw a base map
- * mDIV: id of <div> tag where to draw the map
- * return leaflet object of map
- */
 function draw_baseMap(mDIV) {
-
     var traceDiv = document.getElementById(mDIV)
         .getElementsByClassName("trace")[0];
     var html_trace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="trace_selected()">';
@@ -182,7 +164,7 @@ function draw_baseMap(mDIV) {
     //var mapCenter = [44.967243, -103.771556];
     //var mapZoomLevel = 8;
     var mapCenter = [41.992439, -114.040937];
-    var mapZoomLevel = 9;
+    var mapZoomLevel = 4;
     var map = L.map(mapDiv, {
         center: mapCenter,
         zoom: mapZoomLevel,
@@ -195,13 +177,7 @@ function draw_baseMap(mDIV) {
 }
 
 
-/**
- * this function inboked by trace select in the drop-down list
- * update app.intervals by selected trace
- * call the draw_choroplethMap function
- */
 function trace_selected() {
-
     var e = document.getElementById("traceSelect");
     var trace = e.options[e.selectedIndex].value;
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
@@ -211,10 +187,6 @@ function trace_selected() {
 }
 
 
-/**
- * draw a choropleth map
- * item: selected trace  
- */
 function draw_choroplethMap(item) {
 
     // control that shows state info on hover
@@ -265,7 +237,7 @@ function draw_choroplethMap(item) {
         var layer = e.target;
         layer.setStyle({
             weight: 3,
-            color: '#00ffff',
+            color: '#ffffff',
             dashArray: '',
             fillOpacity: 0.9
         });
@@ -288,7 +260,7 @@ function draw_choroplethMap(item) {
         layer.on({
             mouseover: highlightFeature,
             mouseout: resetHighlight,
-            click: zoomToFeature
+            //click: zoomToFeature
         });
     }
 
@@ -322,22 +294,22 @@ function draw_chart(trace, cDIV = "chart") {
     var chartDiv = document.getElementById(cDIV)
         .getElementsByClassName("chart")[0];
 
-    var xy = [];
+    var values = [];
     app.assembledGeoJSON.features.forEach(function(feature, i) {
         countyName = trimSuffix(feature.properties["COUNTY_NAME"], " County");
         stateAbbrev = STATE_ABBREVIATIONS[feature.properties["COUNTY_STATE"]];
         
         if (feature.properties[trace] != NO_DATA) {
-            xy.push([countyName + ", " + stateAbbrev, feature.properties[trace]]);
+            values.push([countyName + ", " + stateAbbrev, feature.properties[trace]]);
         }
     });
-    xy = xy.sort(function(a, b) {
+    values = values.sort(function(a, b) {
         return b[1] - a[1];
     });
 
     var x = [];
     var y = [];
-    xy.forEach((value, i) => {
+    values.forEach((value, i) => {
         if (i < 50) {
             x.push(value[0]);
             y.push(value[1]);
@@ -362,15 +334,15 @@ function draw_histogram(trace, cDIV = "histogram") {
     var histogramDiv = document.getElementById(cDIV)
         .getElementsByClassName("histogram")[0];
 
-    var x = [];
+    var values = [];
     app.assembledGeoJSON.features.forEach(function(feature, i) {
         if (feature.properties[trace] != NO_DATA) {
-            x.push(feature.properties[trace]);
+            values.push(feature.properties[trace]);
         }
     });
 
     var trace1 = {
-        y: x,
+        y: values,
         type: 'histogram',
     };
     var data = [trace1];
