@@ -90,17 +90,16 @@ var app = {
 
 
 function entryPoint() {
-
     app.assembledGeoJSON = assembleGeoJSON(GEO_JSON);
 
-    app.map = draw_baseMap("map");
+    app.map = drawBaseMap("map");
     var e = document.getElementById("traceSelect");
     var trace = e.options[e.selectedIndex].value;
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace);
     app.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS];
-    draw_choroplethMap(trace);
-    draw_chart(trace);
-    draw_histogram(trace);
+    drawChoroplethMap(trace);
+    drawChart(trace);
+    drawHistogram(trace);
 }
 
 
@@ -108,8 +107,6 @@ function assembleGeoJSON(geoJSON) {
     var geoFeatures = []
     geoJSON.features.forEach(function(row, i) {
         if (row.properties["COUNTY_STATE"] == null) return;
-        //if (row.properties["COUNTY_STATE"].trim() == "Alaska" || row.properties["COUNTY_STATE"].trim() ==
-        //    "Hawaii" || row.properties["COUNTY_STATE"].trim() == "Puerto Rico") return;
         var feature = {
             "type": "Feature",
             "geometry": row.geometry,
@@ -125,9 +122,9 @@ function assembleGeoJSON(geoJSON) {
 }
 
 
-function classification(method, nClass, item) {
+function classification(method, numClasses, item) {
     var values = [];
-    app.assembledGeoJSON.features.forEach(function(feature, i) { // skip if NO_DATA
+    app.assembledGeoJSON.features.forEach(function(feature, i) {
         if (feature.properties[item] != NO_DATA) {
             values.push(feature.properties[item]);
         }
@@ -136,23 +133,31 @@ function classification(method, nClass, item) {
     var serie = new geostats();
     serie.setSerie(values);
     var intervals = [];
-    if (method == 'Equal') intervals = serie.getClassEqInterval(nClass);
-    if (method == 'Quantile') intervals = serie.getClassQuantile(nClass);
-    if (method == 'Jenks') intervals = serie.getClassJenks(nClass);
+    switch (method) {
+        case "Equal":
+            intervals = serie.getClassEqInterval(numClasses);
+            break;
+        case "Quantile":
+            intervals = serie.getClassQuantile(numClasses);
+            break;
+        case "Jenks":
+            intervals = serie.getClassJenks(numClasses);
+            break;
+    }
 
     return intervals;
 }
 
 
-function draw_baseMap(mDIV) {
+function drawBaseMap(mDIV) {
     var traceDiv = document.getElementById(mDIV)
         .getElementsByClassName("trace")[0];
-    var html_trace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="trace_selected()">';
+    var htmlTrace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="traceSelected()">';
     for (const trace of TRACES) {
-        html_trace += '<option value="' + trace + '" class="line_none">' + trace + '</option>';
+        htmlTrace += '<option value="' + trace + '" class="line_none">' + trace + '</option>';
     }
-    html_trace += '</select>';
-    traceDiv.innerHTML = html_trace;
+    htmlTrace += '</select>';
+    traceDiv.innerHTML = htmlTrace;
 
     var mapDiv = document.getElementById(mDIV)
         .getElementsByClassName("map")[0];
@@ -161,39 +166,42 @@ function draw_baseMap(mDIV) {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     });
 
+    // CONUS
     //var mapCenter = [44.967243, -103.771556];
-    //var mapZoomLevel = 8;
+    //var mapZoomLevel = 4;
+
+    // Western CONUS
     var mapCenter = [41.992439, -114.040937];
     var mapZoomLevel = 4;
+
     var map = L.map(mapDiv, {
         center: mapCenter,
         zoom: mapZoomLevel,
         layers: [regular]
     });
 
-    //map.scrollWheelZoom.disable();
-
     return map;
 }
 
 
-function trace_selected() {
+function traceSelected() {
     var e = document.getElementById("traceSelect");
     var trace = e.options[e.selectedIndex].value;
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
-    draw_choroplethMap(trace);
-    draw_chart(trace);
-    draw_histogram(trace);
+    drawChoroplethMap(trace);
+    drawChart(trace);
+    drawHistogram(trace);
 }
 
 
-function draw_choroplethMap(item) {
+function drawChoroplethMap(item) {
+    if (app.info != null) {
+        app.info.remove();
+    }
 
-    // control that shows state info on hover
-    if (app.info != null) app.info.remove();
     app.info = L.control();
     app.info.onAdd = function(map) {
-        this._div = L.DomUtil.create('div', 'info');
+        this._div = L.DomUtil.create("div", "info");
         this.update();
         return this._div;
     };
@@ -201,16 +209,14 @@ function draw_choroplethMap(item) {
         this._div.innerHTML = '<h4>' + item + '</h4>' + (props ?
             props.COUNTY_NAME + ' :&nbsp; &nbsp;' + ((props[item] == NO_DATA) ? "no data" : '<b>' + props[
                 item] + '</b>') :
-            'Hover over an area');
+            "Hover over an area");
     };
     app.info.addTo(app.map);
 
-    // get getOpacity
     function getOpacity(feature) {
         return 0.9;
     }
 
-    // get color depending on selected variable's value
     function getColor(d) {
         if (d == NO_DATA) {
             return "#5E5E5E";
@@ -226,8 +232,8 @@ function draw_choroplethMap(item) {
         return {
             weight: 0.3,
             opacity: 1,
-            color: 'white',
-            dashArray: '1',
+            color: "white",
+            dashArray: "1",
             fillOpacity: getOpacity(feature),
             fillColor: getColor(feature.properties[item])
         };
@@ -237,8 +243,8 @@ function draw_choroplethMap(item) {
         var layer = e.target;
         layer.setStyle({
             weight: 3,
-            color: '#ffffff',
-            dashArray: '',
+            color: "#ffffff",
+            dashArray: "",
             fillOpacity: 0.9
         });
         if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
@@ -274,10 +280,10 @@ function draw_choroplethMap(item) {
 
     if (app.legend != null) app.legend.remove();
     app.legend = L.control({
-        position: 'bottomright'
+        position: "bottomright"
     });
     app.legend.onAdd = function(map) {
-        var div = L.DomUtil.create('div', 'info legend');
+        var div = L.DomUtil.create("div", "info legend");
         var labels = [];
         for (var i = 0; i < app.colors.length; i++)
             labels.push('<i style="background:' + app.colors[i] + '"></i>&nbsp; &nbsp;' + app.intervals[i].toFixed(
@@ -290,7 +296,7 @@ function draw_choroplethMap(item) {
 }
 
 
-function draw_chart(trace, cDIV = "chart") {
+function drawChart(trace, cDIV = "chart") {
     var chartDiv = document.getElementById(cDIV)
         .getElementsByClassName("chart")[0];
 
@@ -320,17 +326,17 @@ function draw_chart(trace, cDIV = "chart") {
         x: x,
         y: y,
         name: trace,
-        type: 'bar',
+        type: "bar",
     };
     var data = [trace1];
     var layout = {
-        barmode: 'stack'
+        barmode: "stack"
     };
     Plotly.newPlot(chartDiv, data, layout);
 }
 
 
-function draw_histogram(trace, cDIV = "histogram") {
+function drawHistogram(trace, cDIV = "histogram") {
     var histogramDiv = document.getElementById(cDIV)
         .getElementsByClassName("histogram")[0];
 
@@ -343,7 +349,7 @@ function draw_histogram(trace, cDIV = "histogram") {
 
     var trace1 = {
         y: values,
-        type: 'histogram',
+        type: "histogram",
     };
     var data = [trace1];
     Plotly.newPlot(histogramDiv, data);
