@@ -30,13 +30,15 @@
 		<div id="histogram" class="mapArea">
 			<div class="histogram"></div>
 		</div>
+ 		<div id="table" class="mapArea">
+			<div class="table"></div>
+		</div>
 	</div>
 
 
 <script type="text/javascript">
 
-// define global variables
-var TRACES = [
+const TRACES = [
     "FIRE_COUNT",
     "BURN_AREA",
     "COUNTY_TOTAL_POPULATION",
@@ -45,11 +47,20 @@ var TRACES = [
     "BURN_AREA_POPULATION_RATIO",
     "BURN_AREA_LAND_AREA_RATIO",
 ];
-var NUMBER_OF_CLASS = 5; // range: 5 ~ 9
-var CLASSIFICATION_METHOD = "Jenks" // Equal, Quantile or Jenks
-var COLOR_HUE = "Yellow_to_Red"; // Red, Green or Blue
-var NO_DATA = null;
-var COLOR_CLASS = {
+const TRACE_NAMES = {
+    "FIRE_COUNT": "Fire Count",
+    "BURN_AREA": "Burn Area (acres)",
+    "COUNTY_TOTAL_POPULATION": "Population",
+    "FIRE_COUNT_POPULATION_RATIO": "Fire Count / Population",
+    "FIRE_COUNT_LAND_AREA_RATIO": "Fire Count / Land Area",
+    "BURN_AREA_POPULATION_RATIO": "Burn Area / Population",
+    "BURN_AREA_LAND_AREA_RATIO": "Burn Area / Land Area",
+};
+const NUMBER_OF_CLASS = 5; // range: 5 ~ 9
+const CLASSIFICATION_METHOD = "Jenks" // Equal, Quantile or Jenks
+const COLOR_HUE = "Yellow_to_Red"; // Red, Green or Blue
+const NO_DATA = null;
+const COLOR_CLASS = {
     "Red_5": ["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#a50f15"],
     "Red_6": ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#de2d26", "#a50f15"],
     "Red_7": ["#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"],
@@ -76,7 +87,7 @@ var COLOR_CLASS = {
         "#800026"
     ]
 };
-// changeable global variables
+
 var app = {
     "map": null, // leaflet object of map
     "assembledGeoJSON": null, // GeoJSON format with properties and geometry data
@@ -85,7 +96,6 @@ var app = {
     "info": null, // leaflet object of info
     "legend": null, // leaflet object of legend
 }
-// end of global variables
 
 
 
@@ -100,6 +110,7 @@ function entryPoint() {
     drawChoroplethMap(trace);
     drawChart(trace);
     drawHistogram(trace);
+    drawTable(trace);
 }
 
 
@@ -154,7 +165,7 @@ function drawBaseMap(mDIV) {
         .getElementsByClassName("trace")[0];
     var htmlTrace = 'Trace: <select id="traceSelect" class="traceSelect" onChange="traceSelected()">';
     for (const trace of TRACES) {
-        htmlTrace += '<option value="' + trace + '" class="line_none">' + trace + '</option>';
+        htmlTrace += '<option value="' + trace + '" class="line_none">' + TRACE_NAMES[trace] + '</option>';
     }
     htmlTrace += '</select>';
     traceDiv.innerHTML = htmlTrace;
@@ -191,6 +202,7 @@ function traceSelected() {
     drawChoroplethMap(trace);
     drawChart(trace);
     drawHistogram(trace);
+    drawTable(trace);
 }
 
 
@@ -206,7 +218,7 @@ function drawChoroplethMap(item) {
         return this._div;
     };
     app.info.update = function(props) {
-        this._div.innerHTML = '<h4>' + item + '</h4>' + (props ?
+        this._div.innerHTML = '<h4>' + TRACE_NAMES[item] + '</h4>' + (props ?
             props.COUNTY_NAME + ' :&nbsp; &nbsp;' + ((props[item] == NO_DATA) ? "no data" : '<b>' + props[
                 item] + '</b>') :
             "Hover over an area");
@@ -266,7 +278,7 @@ function drawChoroplethMap(item) {
         layer.on({
             mouseover: highlightFeature,
             mouseout: resetHighlight,
-            //click: zoomToFeature
+            click: zoomToFeature
         });
     }
 
@@ -356,8 +368,74 @@ function drawHistogram(trace, cDIV = "histogram") {
 }
 
 
+function drawTable(trace, cDIV = "table") {
+    var tableDiv = document.getElementById(cDIV)
+        .getElementsByClassName("table")[0];
+
+    var header = [["<b>County Name</b>"], ["<b>State</b>"]];
+    for (let t of TRACES) {
+        header.push(["<b>" + TRACE_NAMES[t] + "</b>"]);
+    }
+
+    var sortIndex = TRACES.indexOf(trace) + 2;
+    var values = [];
+    app.assembledGeoJSON.features.forEach(function(feature, i) {
+        var row = []
+        row.push(feature.properties["COUNTY_NAME"]);
+        row.push(feature.properties["COUNTY_STATE"]);
+        for (let t of TRACES) {
+            let value = feature.properties[t] % 1 == 0 ? feature.properties[t] : feature.properties[t].toFixed(2);
+            row.push(value);
+        }
+        values.push(row);
+    });
+    values.sort(function(a, b) {
+        if (sortIndex > 1) {
+            let value = b[sortIndex] - a[sortIndex];
+            if (value != 0) return value;
+        }
+        return a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]);
+    });
+
+
+    var data = [{
+        type: 'table',
+        header: {
+            values: header,
+            align: ["center"],
+            line: {width: 1, color: '#506784'},
+            fill: {color: '#119DFF'},
+            font: {family: "Arial", size: 12, color: "white"}
+        },
+        cells: {
+            values: transpose(values),
+            align: ["left", "left", "center"],
+            font: {family: "Arial", size: 11, color: ["#506784"]}
+        }
+    }]
+
+    Plotly.newPlot(tableDiv, data);
+}
+
+
 function trimSuffix(value, suffix) {
-  return value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+    return value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+}
+
+
+function transpose(matrix) {
+    var rows = matrix.length
+    var cols = matrix[0].length;
+    var grid = [];
+    for (let j = 0; j < cols; j++) {
+        grid[j] = Array(rows);
+    }
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            grid[j][i] = matrix[i][j];
+        }
+    }
+    return grid;
 }
 </script>
 
