@@ -24,14 +24,14 @@
 			<div class="trace"></div>
 			<div class="map"></div>
 		</div>
+ 		<div id="table" class="mapArea">
+			<div class="table"></div>
+		</div>
 		<div id="chart" class="mapArea">
 			<div class="chart"></div>
 		</div>
 		<div id="histogram" class="mapArea">
 			<div class="histogram"></div>
-		</div>
- 		<div id="table" class="mapArea">
-			<div class="table"></div>
 		</div>
 	</div>
 
@@ -108,9 +108,9 @@ function entryPoint() {
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace);
     app.colors = COLOR_CLASS[COLOR_HUE + "_" + NUMBER_OF_CLASS];
     drawChoroplethMap(trace);
+    drawTable(trace);
     drawChart(trace);
     drawHistogram(trace);
-    drawTable(trace);
 }
 
 
@@ -200,9 +200,9 @@ function traceSelected() {
     var trace = e.options[e.selectedIndex].value;
     app.intervals = classification(CLASSIFICATION_METHOD, NUMBER_OF_CLASS, trace)
     drawChoroplethMap(trace);
+    drawTable(trace);
     drawChart(trace);
     drawHistogram(trace);
-    drawTable(trace);
 }
 
 
@@ -342,7 +342,8 @@ function drawChart(trace, cDIV = "chart") {
     };
     var data = [trace1];
     var layout = {
-        barmode: "stack"
+        barmode: "stack",
+        yaxis: {title: TRACE_NAMES[trace]}
     };
     Plotly.newPlot(chartDiv, data, layout);
 }
@@ -363,8 +364,12 @@ function drawHistogram(trace, cDIV = "histogram") {
         y: values,
         type: "histogram",
     };
+    var layout = {
+      xaxis: {title: "Count"}, 
+      yaxis: {title: TRACE_NAMES[trace]}
+    }
     var data = [trace1];
-    Plotly.newPlot(histogramDiv, data);
+    Plotly.newPlot(histogramDiv, data, layout);
 }
 
 
