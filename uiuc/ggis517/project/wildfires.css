@@ -2,7 +2,7 @@ body, h1, h2, h3, h4, h5, h6 {
   font-family: Arial, Helvetica, sans-serif;
 }
 #mapContainer { 
-	height: 500px; 
+	height: 600px; 
 	width: 100%; 
 }
 #mapContainer .mapArea { 
@@ -12,7 +12,7 @@ body, h1, h2, h3, h4, h5, h6 {
 }
 #mapContainer .map { 
 	width: 1000px; 
-	height: 500px; 
+	height: 600px; 
 }
 #mapContainer .trace { 
 	text-align: right; 
@@ -48,13 +48,13 @@ body, h1, h2, h3, h4, h5, h6 {
 }
 #mapContainer .chart { 
 	width: 1000px; 
-	height: 500px; 
+	height: 600px; 
 }
 #mapContainer .histogram { 
 	width: 1000px; 
-	height: 500px; 
+	height: 600px; 
 }
 #mapContainer .table { 
 	width: 1000px; 
-	height: 500px; 
+	height: 600px; 
 }
