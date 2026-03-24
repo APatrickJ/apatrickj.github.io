@@ -554,6 +554,20 @@
         if (pts.length > 1) features.push({ type: 'Feature', properties: { kind: kind || 'grid' }, geometry: { type: 'LineString', coordinates: pts } });
       };
 
+      var addClippedLine = function (pts, west, east) {
+        var seg = [];
+        for (var pi = 0; pi < pts.length; pi++) {
+          var lng = pts[pi][0];
+          if (lng >= west && lng <= east) {
+            seg.push(pts[pi]);
+          } else if (seg.length > 0) {
+            addLine(seg);
+            seg = [];
+          }
+        }
+        addLine(seg);
+      };
+
       for (var zone = z0; zone <= z1; zone++) {
         var cm = (zone - 1) * 6 - 180 + 3;
         var zW = cm - 3, zE = cm + 3;
@@ -614,7 +628,7 @@
               var pt = utmToLatLng(e, n, zone, seg.nh);
               if (isFinite(pt.lat) && isFinite(pt.lng)) pts.push([pt.lng, pt.lat]);
             }
-            addLine(pts);
+            addClippedLine(pts, zW, zE);
           }
 
           // Northing lines (horizontal in UTM, curve on map)
@@ -625,7 +639,7 @@
               var pt = utmToLatLng(e, n, zone, seg.nh);
               if (isFinite(pt.lat) && isFinite(pt.lng)) pts.push([pt.lng, pt.lat]);
             }
-            addLine(pts);
+            addClippedLine(pts, zW, zE);
           }
         }
       }
