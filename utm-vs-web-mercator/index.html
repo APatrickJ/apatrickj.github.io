@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UTM vs Web Mercator</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    #map { width: 100vw; height: 100vh; }
+
+    .panel {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 10px;
+      color: #e2e8f0;
+      z-index: 10;
+    }
+
+    /* ---- Header Panel ---- */
+    #header {
+      top: 12px;
+      left: 12px;
+      padding: 16px 20px;
+      max-width: 370px;
+    }
+
+    #header .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    #header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.01em;
+    }
+
+    #header .toggle-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    #header .toggle-btn:hover { color: #94a3b8; }
+
+    #header-body {
+      margin-top: 10px;
+      max-height: 500px;
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+      opacity: 1;
+    }
+
+    #header-body.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    #header p {
+      font-size: 12.5px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .c-blue { color: #60a5fa; }
+    .c-red { color: #f87171; }
+    .c-amber { color: #fbbf24; }
+    .c-green { color: #4ade80; }
+
+    #header details {
+      margin-top: 12px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      padding-top: 10px;
+    }
+
+    #header summary {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #header summary:hover { color: #cbd5e1; }
+
+    #header details ul {
+      margin-top: 8px;
+      padding-left: 16px;
+    }
+
+    #header details li {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 4px;
+    }
+
+    /* ---- Legend ---- */
+    #legend {
+      top: 12px;
+      right: 56px;
+      padding: 10px 14px;
+      max-width: 220px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: start;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+      padding: 4px 0;
+      line-height: 1.35;
+    }
+
+    .legend-row + .legend-row {
+      border-top: 1px solid rgba(100,116,139,0.15);
+    }
+
+    .legend-line {
+      width: 18px;
+      height: 3px;
+      border-radius: 1px;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+
+    .legend-line.dashed {
+      background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+      height: 2px;
+    }
+
+    /* ---- Info Bar ---- */
+    #info {
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    #convergence-svg { flex-shrink: 0; }
+
+    .stats-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+
+    .stat-label {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+      white-space: nowrap;
+    }
+
+    .attribution {
+      font-size: 9px;
+      color: #475569;
+      margin-left: auto;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .attribution a { color: #64748b; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 640px) {
+      #header {
+        max-width: none;
+        right: 12px;
+        padding: 12px 16px;
+      }
+
+      #header h1 { font-size: 15px; }
+
+      #legend {
+        top: auto;
+        right: 12px;
+        bottom: 88px;
+      }
+
+      #info {
+        gap: 10px;
+        padding: 10px 12px;
+        flex-wrap: wrap;
+      }
+
+      .stats-row { gap: 10px; }
+      .stat-value { font-size: 13px; }
+      .attribution { display: none; }
+
+      #convergence-svg { width: 48px; height: 48px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Header -->
+  <div id="header" class="panel">
+    <div class="top-row">
+      <h1>UTM vs Web Mercator</h1>
+      <button class="toggle-btn" id="toggle-header" title="Collapse">&minus;</button>
+    </div>
+    <div id="header-body">
+      <p>
+        Compare the <span class="c-blue">Web Mercator tile grid</span>
+        (always axis-aligned to lat/lng) with the
+        <span class="c-red">UTM grid</span> (axis-aligned to each zone's
+        Transverse Mercator projection). Zoom in to see the UTM grid
+        subdivide and diverge from the Mercator grid, especially at
+        higher latitudes.
+      </p>
+      <details>
+        <summary>About these projections</summary>
+        <ul>
+          <li>
+            <span class="c-blue">Web Mercator</span> is a single global
+            projection used by virtually all web maps. Its tile grid is always
+            aligned to geographic north (latitude/longitude axes).
+          </li>
+          <li>
+            <span class="c-red">UTM</span> divides the world into 60 zones
+            of 6&deg; longitude each. Each zone uses a Transverse Mercator
+            projection centered on its central meridian.
+          </li>
+          <li>
+            Grid north equals true north only along a zone's central meridian.
+            The <span class="c-amber">convergence angle</span> grows with
+            distance from center and with latitude:
+            &gamma; &approx; &Delta;&lambda; &middot; sin(&phi;).
+          </li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div id="legend" class="panel">
+    <div class="legend-row">
+      <div class="legend-line" style="background:#991b1b"></div>
+      <span><strong style="color:#e2e8f0">UTM Zone Boundary</strong><br>6&deg;-wide zone edges; the fundamental divisions of the UTM system</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-line dashed" style="color:#dc2626"></div>
+      <span><strong style="color:#e2e8f0">UTM Grid</strong><br>Easting/northing lines aligned to each zone's Transverse Mercator projection; notice how they tilt away from the central meridian</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-line dashed" style="color:#60a5fa"></div>
+      <span><strong style="color:#e2e8f0">Web Mercator Tile Grid</strong><br>Always axis-aligned to lat/lng; the grid every web map uses under the hood</span>
+    </div>
+  </div>
+
+  <!-- Info Bar -->
+  <div id="info" class="panel">
+    <svg id="convergence-svg" width="64" height="64" viewBox="0 0 64 64" aria-label="Convergence angle compass">
+      <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(100,116,139,0.25)" stroke-width="1"/>
+      <line x1="32" y1="4" x2="32" y2="8" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+      <line x1="32" y1="56" x2="32" y2="60" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+      <line x1="4" y1="32" x2="8" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+      <line x1="56" y1="32" x2="60" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+      <path id="conv-arc" d="" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" stroke-width="1"/>
+      <line id="true-north" x1="32" y1="32" x2="32" y2="8" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+      <line id="utm-north" x1="32" y1="32" x2="32" y2="8" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" opacity="0.9" style="transform-origin:32px 32px;transition:transform .12s ease-out"/>
+      <text x="32" y="3" text-anchor="middle" font-size="7" font-weight="700" fill="#64748b">N</text>
+    </svg>
+
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-label">UTM Zone</span>
+        <span class="stat-value c-red" id="v-zone">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Convergence</span>
+        <span class="stat-value c-amber" id="v-conv">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Central Meridian</span>
+        <span class="stat-value c-red" id="v-cm">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tile (x, y, z)</span>
+        <span class="stat-value c-blue" id="v-tile">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Position</span>
+        <span class="stat-value c-green" id="v-pos">--</span>
+      </div>
+    </div>
+
+    <div class="attribution">
+      &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+      &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>
+    </div>
+  </div>
+
+  <script>
+    // ---- Parse / update URL hash for shareable view state ----
+    function parseHash() {
+      var params = {};
+      window.location.hash.substring(1).split('&').forEach(function (part) {
+        var kv = part.split('=');
+        if (kv[0] && kv[1]) params[kv[0]] = parseFloat(kv[1]);
+      });
+      return params;
+    }
+
+    var hashParams = parseHash();
+    var initCenter = [
+      isFinite(hashParams.lng) ? hashParams.lng : -120.6,
+      isFinite(hashParams.lat) ? hashParams.lat : 47.6
+    ];
+    var initZoom = isFinite(hashParams.z) ? hashParams.z : 5;
+
+    // ---- Map ----
+    var map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            maxzoom: 19
+          }
+        },
+        layers: [{ id: 'basemap', type: 'raster', source: 'carto' }],
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
+      },
+      center: initCenter,
+      zoom: initZoom,
+      attributionControl: false,
+      renderWorldCopies: false
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    // ---- Header toggle ----
+    var headerBody = document.getElementById('header-body');
+    var toggleBtn = document.getElementById('toggle-header');
+    toggleBtn.addEventListener('click', function () {
+      var collapsed = headerBody.classList.toggle('collapsed');
+      toggleBtn.innerHTML = collapsed ? '+' : '&minus;';
+      toggleBtn.title = collapsed ? 'Expand' : 'Collapse';
+    });
+
+    // ---- Build static UTM zone GeoJSON ----
+    function buildUTMZones() {
+      var features = [];
+      for (var z = 1; z <= 60; z++) {
+        var west = -180 + (z - 1) * 6;
+        var cm = west + 3;
+        var coords = [];
+        for (var lat = -80; lat <= 84; lat += 2) coords.push([west, lat]);
+        coords.push([west, 84]);
+        features.push({
+          type: 'Feature',
+          properties: { kind: 'boundary', zone: z },
+          geometry: { type: 'LineString', coordinates: coords }
+        });
+        [-40, 0, 40, 70].forEach(function (lat) {
+          features.push({
+            type: 'Feature',
+            properties: { kind: 'label', label: String(z) },
+            geometry: { type: 'Point', coordinates: [cm, lat] }
+          });
+        });
+      }
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ---- Build Web Mercator tile grid for visible area ----
+    // Offset by +3 zoom levels so the grid is always finer than the
+    // current tile level and visibly gets denser as you zoom in.
+    var TILE_GRID_ZOOM_OFFSET = 3;
+
+    function buildTileGrid() {
+      var bounds = map.getBounds();
+      var z = Math.min(Math.floor(map.getZoom()) + TILE_GRID_ZOOM_OFFSET, 22);
+      var n = Math.pow(2, z);
+
+      var west = Math.max(bounds.getWest(), -179.999);
+      var east = Math.min(bounds.getEast(), 179.999);
+      var south = Math.max(bounds.getSouth(), -85);
+      var north = Math.min(bounds.getNorth(), 85);
+
+      function lat2ty(lat) {
+        var r = lat * Math.PI / 180;
+        return Math.floor(n * (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2);
+      }
+
+      function ty2lat(y) {
+        return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+      }
+
+      var x0 = Math.max(0, Math.floor(n * ((west + 180) / 360)));
+      var x1 = Math.min(n, Math.ceil(n * ((east + 180) / 360)));
+      var y0 = Math.max(0, lat2ty(north));
+      var y1 = Math.min(n - 1, lat2ty(south));
+
+      var features = [];
+
+      for (var x = x0; x <= x1 + 1; x++) {
+        var lng = (x / n) * 360 - 180;
+        if (lng >= -180 && lng <= 180) {
+          features.push({
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: [[lng, south - 1], [lng, north + 1]] }
+          });
+        }
+      }
+
+      for (var y = y0; y <= y1 + 1; y++) {
+        var lat = ty2lat(Math.min(y, n));
+        if (lat >= -85.051 && lat <= 85.051) {
+          features.push({
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: [[west - 1, lat], [east + 1, lat]] }
+          });
+        }
+      }
+
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ---- WGS84 / UTM projection (full accuracy) ----
+    var WGS84_A  = 6378137.0;
+    var WGS84_F  = 1 / 298.257223563;
+    var WGS84_E2 = 2 * WGS84_F - WGS84_F * WGS84_F;
+    var WGS84_EP2 = WGS84_E2 / (1 - WGS84_E2);
+    var UTM_K0 = 0.9996;
+
+    function latLngToUTM(lat, lng, zone) {
+      var phi = lat * Math.PI / 180;
+      var lam0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+      var sp = Math.sin(phi), cp = Math.cos(phi), tp = Math.tan(phi);
+      var N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sp * sp);
+      var T = tp * tp, C = WGS84_EP2 * cp * cp;
+      var A = cp * (lng * Math.PI / 180 - lam0);
+      var e2 = WGS84_E2, e4 = e2 * e2, e6 = e4 * e2;
+      var M = WGS84_A * ((1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * phi
+            - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * phi)
+            + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * phi)
+            - (35 * e6 / 3072) * Math.sin(6 * phi));
+      var A2 = A * A, A3 = A2 * A, A4 = A3 * A, A5 = A4 * A, A6 = A5 * A;
+      var easting = UTM_K0 * N * (A + (1 - T + C) * A3 / 6
+                  + (5 - 18 * T + T * T + 72 * C - 58 * WGS84_EP2) * A5 / 120) + 500000;
+      var northing = UTM_K0 * (M + N * tp * (A2 / 2 + (5 - T + 9 * C + 4 * C * C) * A4 / 24
+                   + (61 - 58 * T + T * T + 600 * C - 330 * WGS84_EP2) * A6 / 720));
+      if (lat < 0) northing += 10000000;
+      return { easting: easting, northing: northing };
+    }
+
+    function utmToLatLng(easting, northing, zone, northern) {
+      var x = easting - 500000;
+      var y = northern ? northing : northing - 10000000;
+      var M = y / UTM_K0;
+      var e2 = WGS84_E2, e4 = e2 * e2, e6 = e4 * e2;
+      var mu = M / (WGS84_A * (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256));
+      var e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+      var e12 = e1 * e1, e13 = e12 * e1, e14 = e13 * e1;
+      var phi1 = mu + (3 * e1 / 2 - 27 * e13 / 32) * Math.sin(2 * mu)
+               + (21 * e12 / 16 - 55 * e14 / 32) * Math.sin(4 * mu)
+               + (151 * e13 / 96) * Math.sin(6 * mu)
+               + (1097 * e14 / 512) * Math.sin(8 * mu);
+      var sp1 = Math.sin(phi1), cp1 = Math.cos(phi1), tp1 = Math.tan(phi1);
+      var N1 = WGS84_A / Math.sqrt(1 - e2 * sp1 * sp1);
+      var T1 = tp1 * tp1, C1 = WGS84_EP2 * cp1 * cp1;
+      var R1 = WGS84_A * (1 - e2) / Math.pow(1 - e2 * sp1 * sp1, 1.5);
+      var D = x / (N1 * UTM_K0);
+      var D2 = D * D, D3 = D2 * D, D4 = D3 * D, D5 = D4 * D, D6 = D5 * D;
+      var lat = phi1 - (N1 * tp1 / R1) * (D2 / 2
+              - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * WGS84_EP2) * D4 / 24
+              + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * WGS84_EP2 - 3 * C1 * C1) * D6 / 720);
+      var lam0 = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+      var lng = lam0 + (D - (1 + 2 * T1 + C1) * D3 / 6
+              + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * WGS84_EP2 + 24 * T1 * T1) * D5 / 120) / cp1;
+      return { lat: lat * 180 / Math.PI, lng: lng * 180 / Math.PI };
+    }
+
+    // ---- UTM grid (easting / northing lines projected onto the map) ----
+    function utmGridSpacing(zoom) {
+      if (zoom <= 1) return 0;
+      var z = zoom + TILE_GRID_ZOOM_OFFSET;
+      var approxTileM = 40075000 / Math.pow(2, z);
+      var nice = [500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5];
+      for (var i = 0; i < nice.length; i++) {
+        if (approxTileM >= nice[i]) return nice[i];
+      }
+      return 5;
+    }
+
+    function buildUTMGrid() {
+      var zoom = Math.floor(map.getZoom());
+      var spacing = utmGridSpacing(zoom);
+
+      var bounds = map.getBounds();
+      var mapW = Math.max(bounds.getWest(), -180);
+      var mapE = Math.min(bounds.getEast(), 180);
+      var mapS = Math.max(bounds.getSouth(), -80);
+      var mapN = Math.min(bounds.getNorth(), 84);
+
+      var z0 = Math.max(1, Math.floor((mapW + 180) / 6) + 1);
+      var z1 = Math.min(60, Math.floor((mapE + 180) / 6) + 1);
+
+      var features = [];
+      var nsamp = zoom <= 5 ? 32 : zoom <= 10 ? 64 : 80;
+
+      var addLine = function (pts, kind) {
+        if (pts.length > 1) features.push({ type: 'Feature', properties: { kind: kind || 'grid' }, geometry: { type: 'LineString', coordinates: pts } });
+      };
+
+      for (var zone = z0; zone <= z1; zone++) {
+        var cm = (zone - 1) * 6 - 180 + 3;
+        var zW = cm - 3, zE = cm + 3;
+
+        // Zone boundary at the western edge of this zone
+        var bCoords = [];
+        for (var bLat = Math.max(-80, mapS - 5); bLat <= Math.min(84, mapN + 5); bLat += 1) bCoords.push([zW, bLat]);
+        bCoords.push([zW, Math.min(84, mapN + 5)]);
+        addLine(bCoords, 'boundary');
+
+        if (!spacing) continue;
+
+        var latPad = (mapN - mapS);
+        var segs = [];
+        if (mapN > 0) segs.push({ nh: true,  lo: Math.max(0.001, mapS - latPad), hi: Math.min(84, mapN + latPad) });
+        if (mapS < 0) segs.push({ nh: false, lo: Math.max(-80, mapS - latPad),   hi: Math.min(-0.001, mapN + latPad) });
+
+        var viewPad = (mapE - mapW);
+        var viewW = Math.max(mapW - viewPad, zW);
+        var viewE = Math.min(mapE + viewPad, zE);
+
+        for (var si = 0; si < segs.length; si++) {
+          var seg = segs[si];
+
+          // Sample all four padded viewport corners to get the true
+          // northing and easting ranges (the UTM grid is rotated relative
+          // to the screen, so corners have different UTM coordinates).
+          var corners = [
+            latLngToUTM(seg.lo, viewW, zone),
+            latLngToUTM(seg.lo, viewE, zone),
+            latLngToUTM(seg.hi, viewW, zone),
+            latLngToUTM(seg.hi, viewE, zone)
+          ];
+          var nLo = Infinity, nHi = -Infinity, eLo = Infinity, eHi = -Infinity;
+          for (var ci = 0; ci < corners.length; ci++) {
+            var cn = corners[ci].northing, ce = corners[ci].easting;
+            if (cn < nLo) nLo = cn;
+            if (cn > nHi) nHi = cn;
+            if (ce < eLo) eLo = ce;
+            if (ce > eHi) eHi = ce;
+          }
+
+          var sp = spacing;
+          var nS = Math.floor(nLo / sp) * sp;
+          var nE = Math.ceil(nHi / sp) * sp;
+
+          var eMin = Math.max(166000, eLo);
+          var eMax = Math.min(834000, eHi);
+          var eS = Math.floor(eMin / sp) * sp;
+          var eE = Math.ceil(eMax / sp) * sp;
+
+          // Easting lines (vertical in UTM, converge on map)
+          for (var e = eS; e <= eE; e += sp) {
+            if (e < 166000 || e > 834000) continue;
+            var pts = [];
+            for (var i = 0; i <= nsamp; i++) {
+              var n = nLo + (nHi - nLo) * i / nsamp;
+              var pt = utmToLatLng(e, n, zone, seg.nh);
+              if (isFinite(pt.lat) && isFinite(pt.lng)) pts.push([pt.lng, pt.lat]);
+            }
+            addLine(pts);
+          }
+
+          // Northing lines (horizontal in UTM, curve on map)
+          for (var n = nS; n <= nE; n += sp) {
+            var pts = [];
+            for (var i = 0; i <= nsamp; i++) {
+              var e = eMin + (eMax - eMin) * i / nsamp;
+              var pt = utmToLatLng(e, n, zone, seg.nh);
+              if (isFinite(pt.lat) && isFinite(pt.lng)) pts.push([pt.lng, pt.lat]);
+            }
+            addLine(pts);
+          }
+        }
+      }
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ---- Simplified UTM info for info panel ----
+    function utmBandLetter(lat) {
+      if (lat < -80 || lat > 84) return '';
+      var letters = 'CDEFGHJKLMNPQRSTUVWX';
+      var idx = Math.floor((lat + 80) / 8);
+      return letters[Math.min(idx, letters.length - 1)];
+    }
+
+    function utmInfo(lat, lng) {
+      var zone = Math.min(60, Math.max(1, Math.floor((lng + 180) / 6) + 1));
+      var cm = -180 + (zone - 1) * 6 + 3;
+      var dLng = lng - cm;
+      var conv = (dLng * Math.PI / 180) * Math.sin(lat * Math.PI / 180) * (180 / Math.PI);
+      var band = utmBandLetter(lat);
+      return { zone: zone, cm: cm, dLng: dLng, conv: conv, band: band };
+    }
+
+    function tileXYZ(lat, lng, z) {
+      var n = Math.pow(2, z);
+      var x = Math.floor(n * ((lng + 180) / 360));
+      var r = lat * Math.PI / 180;
+      var y = Math.floor(n * (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2);
+      return { x: x, y: y, z: z };
+    }
+
+    // ---- DOM refs ----
+    var elZone = document.getElementById('v-zone');
+    var elConv = document.getElementById('v-conv');
+    var elCM = document.getElementById('v-cm');
+    var elTile = document.getElementById('v-tile');
+    var elPos = document.getElementById('v-pos');
+    var elUtmNorth = document.getElementById('utm-north');
+    var elConvArc = document.getElementById('conv-arc');
+
+    // ---- Update info panel + convergence compass ----
+    var cursorLatLng = null;
+
+    function updateInfo() {
+      var ll = cursorLatLng || map.getCenter();
+      var lat = ll.lat;
+      var lng = ll.lng;
+      var z = Math.floor(map.getZoom());
+
+      var u = utmInfo(lat, lng);
+      var t = tileXYZ(lat, lng, z);
+
+      elZone.textContent = u.zone + u.band;
+      elConv.textContent = u.conv.toFixed(2) + '\u00B0';
+      elCM.textContent = u.cm + '\u00B0';
+      elTile.textContent = t.x + ', ' + t.y + ', ' + t.z;
+      elPos.textContent = lat.toFixed(3) + '\u00B0, ' + lng.toFixed(3) + '\u00B0';
+
+      // Rotate UTM north needle via CSS transform
+      elUtmNorth.style.transform = 'rotate(' + u.conv + 'deg)';
+
+      // Convergence arc wedge
+      if (Math.abs(u.conv) < 0.05) {
+        elConvArc.setAttribute('d', '');
+      } else {
+        var cx = 32, cy = 32, radius = 16;
+        var startAngle = -90;
+        var endAngle = -90 + u.conv;
+        var startRad = startAngle * Math.PI / 180;
+        var endRad = endAngle * Math.PI / 180;
+        var sx = cx + radius * Math.cos(startRad);
+        var sy = cy + radius * Math.sin(startRad);
+        var ex = cx + radius * Math.cos(endRad);
+        var ey = cy + radius * Math.sin(endRad);
+        var largeArc = Math.abs(u.conv) > 180 ? 1 : 0;
+        var sweep = u.conv > 0 ? 1 : 0;
+        elConvArc.setAttribute('d',
+          'M ' + cx + ' ' + cy +
+          ' L ' + sx + ' ' + sy +
+          ' A ' + radius + ' ' + radius + ' 0 ' + largeArc + ' ' + sweep + ' ' + ex + ' ' + ey +
+          ' Z'
+        );
+      }
+
+    }
+
+    function updateHash() {
+      var c = map.getCenter();
+      var z = map.getZoom();
+      history.replaceState(null, '',
+        '#lat=' + c.lat.toFixed(4) + '&lng=' + c.lng.toFixed(4) + '&z=' + z.toFixed(1)
+      );
+    }
+
+    // ---- Map load ----
+    map.on('load', function () {
+      map.addSource('utm-zones', { type: 'geojson', data: buildUTMZones() });
+      map.addSource('tile-grid', { type: 'geojson', data: buildTileGrid() });
+      map.addSource('utm-grid', { type: 'geojson', data: buildUTMGrid() });
+
+      // Tile grid (dashed to distinguish from UTM)
+      map.addLayer({
+        id: 'tile-grid',
+        type: 'line',
+        source: 'tile-grid',
+        paint: {
+          'line-color': '#3b82f6',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 2, 8, 1.5, 16, 1],
+          'line-opacity': 0.6,
+          'line-dasharray': [6, 3]
+        }
+      });
+
+      // UTM easting/northing grid (axis-aligned to UTM zone, converges on map)
+      map.addLayer({
+        id: 'utm-grid',
+        type: 'line',
+        source: 'utm-grid',
+        filter: ['==', ['get', 'kind'], 'grid'],
+        paint: {
+          'line-color': '#b91c1c',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 1.5, 6, 1.2, 14, 1],
+          'line-opacity': 0.75,
+          'line-dasharray': [6, 3]
+        }
+      });
+
+      // UTM zone boundaries (heavier than grid lines, from same source)
+      map.addLayer({
+        id: 'utm-boundaries',
+        type: 'line',
+        source: 'utm-grid',
+        filter: ['==', ['get', 'kind'], 'boundary'],
+        paint: {
+          'line-color': '#991b1b',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 2.5, 6, 2, 14, 1.5],
+          'line-opacity': 0.85
+        }
+      });
+
+      // UTM zone number labels
+      map.addLayer({
+        id: 'utm-labels',
+        type: 'symbol',
+        source: 'utm-zones',
+        filter: ['==', ['get', 'kind'], 'label'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 0, 7, 5, 10, 10, 13],
+          'text-font': ['Open Sans Regular'],
+          'text-allow-overlap': false,
+          'text-padding': 6
+        },
+        paint: {
+          'text-color': '#fca5a5',
+          'text-halo-color': 'rgba(0, 0, 0, 0.65)',
+          'text-halo-width': 1.5
+        }
+      });
+
+      updateInfo();
+    });
+
+    map.on('move', updateInfo);
+
+    map.on('mousemove', function (e) {
+      cursorLatLng = e.lngLat;
+      updateInfo();
+    });
+
+    map.on('mouseout', function () {
+      cursorLatLng = null;
+      updateInfo();
+    });
+
+    map.on('moveend', function () {
+      var tSrc = map.getSource('tile-grid');
+      if (tSrc) tSrc.setData(buildTileGrid());
+      var uSrc = map.getSource('utm-grid');
+      if (uSrc) uSrc.setData(buildUTMGrid());
+      updateHash();
+    });
+  </script>
+</body>
+</html>
