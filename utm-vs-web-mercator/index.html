@@ -276,7 +276,7 @@
   <div id="legend" class="panel">
     <div class="legend-row">
       <div class="legend-line" style="background:#991b1b"></div>
-      <span><strong style="color:#e2e8f0">UTM Zone Boundary</strong><br>6&deg;-wide zone edges; the fundamental divisions of the UTM system</span>
+      <span><strong style="color:#e2e8f0">UTM Zone Boundary</strong><br>6&deg;-wide zone edges and 8&deg;-tall latitude band edges that form the UTM grid designators</span>
     </div>
     <div class="legend-row">
       <div class="legend-line dashed" style="color:#dc2626"></div>
@@ -567,6 +567,17 @@
         }
         addLine(seg);
       };
+
+      // Latitude band boundaries (every 8° from 80S to 72N, plus 84N)
+      // Split into short per-zone segments to avoid MapLibre tile clipping
+      var bandLats = [-80, -72, -64, -56, -48, -40, -32, -24, -16, -8, 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 84];
+      for (var bi = 0; bi < bandLats.length; bi++) {
+        var bLat = bandLats[bi];
+        if (bLat < mapS - 5 || bLat > mapN + 5) continue;
+        for (var bLng = -180; bLng < 180; bLng += 6) {
+          addLine([[bLng, bLat], [bLng + 6, bLat]], 'boundary');
+        }
+      }
 
       for (var zone = z0; zone <= z1; zone++) {
         var cm = (zone - 1) * 6 - 180 + 3;
