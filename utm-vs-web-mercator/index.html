@@ -951,9 +951,9 @@
               'true geographic north as you move away from the zone\'s central meridian.'
       },
       {
-        center: [-117.0, 55.0], zoom: 6, pitch: 0, bearing: 0,
+        center: [-117.0, 65.0], zoom: 6, pitch: 0, bearing: 0,
         title: 'Inside a UTM Zone: The Northing Curve',
-        body: 'You\'re looking across the full east-west width of UTM zone 11 in western Canada. ' +
+        body: 'You\'re looking across the full east-west width of UTM zone 11 in northern Canada. ' +
               'The <span style="color:#991b1b">solid red zone boundaries</span> are visible on the ' +
               'left (-120\u00b0) and right (-114\u00b0), with the central meridian at -117\u00b0 ' +
               'running straight down the middle.' +
@@ -965,7 +965,7 @@
               '<span class="c-blue">blue Web Mercator lines</span>, which stay perfectly horizontal.'
       },
       {
-        center: [-69.0, -50.0], zoom: 6, pitch: 0, bearing: 0,
+        center: [-69.0, -60.0], zoom: 6, pitch: 0, bearing: 0,
         title: 'Southern Hemisphere: Mirrored',
         body: 'Now look at a UTM zone in Patagonia, at a similar latitude but in the southern ' +
               'hemisphere. The <span class="c-red">dashed red northing lines</span> are again ' +
@@ -980,11 +980,108 @@
         title: 'High Latitudes: Dramatic Divergence',
         body: 'Near Troms\u00f8, Norway at almost 70\u00b0N, the two grids are strikingly different. ' +
               'The convergence angle is large, the <span class="c-red">UTM northing lines</span> arch ' +
-              'prominently toward the pole, and the entire red grid is visibly rotated relative to the ' +
+              'prominently, and the entire red grid is visibly rotated relative to the ' +
               '<span class="c-blue">blue Web Mercator grid</span>. This is why choosing the right ' +
               'coordinate system matters for surveying and navigation at high latitudes.'
+      },
+      {
+        center: [37.5, 0.05], zoom: 9, pitch: 0, bearing: 0,
+        measure: [37.5, 0.15], measureKm: 50,
+        title: 'Measuring at the Equator',
+        body: 'One last comparison. The <span class="c-green">green line</span> is exactly 50 km. ' +
+              'Count the numbered tick marks: it crosses 10 <span class="c-red">red UTM easting ' +
+              'lines</span> and about 5 <span class="c-blue">blue Web Mercator tile lines</span>. ' +
+              'Each red gap is 5 km on the ground; each blue gap is about 10 km.' +
+              '<br><br>' +
+              'Keep those numbers in mind as we fly to Alaska.'
+      },
+      {
+        center: [-147.0, 64.85], zoom: 9, pitch: 0, bearing: 0,
+        measure: [-147.0, 64.91], measureKm: 50,
+        title: 'Measuring at 65\u00b0 North',
+        body: 'Same 50 km, same zoom, same grid density. The line still crosses 10 ' +
+              '<span class="c-red">red UTM lines</span>: each gap is still 5 km, just like at ' +
+              'the equator. But now count the <span class="c-blue">blue ticks</span>: roughly 12, ' +
+              'more than double. Each blue gap has shrunk to about 4 km.' +
+              '<br><br>' +
+              'Both projections are conformal (they preserve local angles and shapes), but they ' +
+              'handle scale differently. The <span class="c-red">UTM grid</span> keeps scale ' +
+              'nearly uniform within each zone, so grid cells represent consistent ground distances. ' +
+              'The <span class="c-blue">Web Mercator grid</span> preserves angles globally but lets ' +
+              'scale vary freely with latitude, so its tiles cover less and less ground toward the poles.'
       }
     ];
+
+    var EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+    function buildMeasureLine(lng, lat, distKm, targetZoom) {
+      var distM = (distKm || 100) * 1000;
+
+      // Snap the line so it sits between UTM grid lines:
+      // offset easting by half a spacing so we get exactly N crossings (not N+1),
+      // and snap northing to midpoint so the line doesn't overlap a northing line.
+      var zoom = targetZoom != null ? Math.floor(targetZoom) : Math.floor(map.getZoom());
+      var sp = utmGridSpacing(zoom);
+      if (sp) {
+        var zone = Math.min(60, Math.max(1, Math.floor((lng + 180) / 6) + 1));
+        var utmC = latLngToUTM(lat, lng, zone);
+        var midN = (Math.floor(utmC.northing / sp) + 0.75) * sp;
+        var midE = (Math.floor(utmC.easting / sp) + 0.75) * sp;
+        var snapped = utmToLatLng(midE, midN, zone, lat >= 0);
+        if (isFinite(snapped.lat) && isFinite(snapped.lng)) { lat = snapped.lat; lng = snapped.lng; }
+      }
+
+      var halfDLng = (distM / 2) / (111320 * Math.cos(lat * Math.PI / 180));
+      var lineW = lng - halfDLng, lineE = lng + halfDLng;
+      var tickH = 0.012;
+      var features = [
+        { type: 'Feature', properties: { kind: 'line' },
+          geometry: { type: 'LineString', coordinates: [[lineW, lat], [lineE, lat]] } },
+        { type: 'Feature', properties: { kind: 'cap' },
+          geometry: { type: 'LineString', coordinates: [[lineW, lat - tickH], [lineW, lat + tickH]] } },
+        { type: 'Feature', properties: { kind: 'cap' },
+          geometry: { type: 'LineString', coordinates: [[lineE, lat - tickH], [lineE, lat + tickH]] } },
+        { type: 'Feature', properties: { kind: 'label', label: (distKm || 100) + ' km' },
+          geometry: { type: 'Point', coordinates: [lng, lat + tickH + 0.02] } }
+      ];
+
+      // Red ticks: UTM easting line crossings
+      var spacing = sp;
+      if (spacing) {
+        var zone = Math.min(60, Math.max(1, Math.floor((lng + 180) / 6) + 1));
+        var utmL = latLngToUTM(lat, lineW, zone);
+        var utmR = latLngToUTM(lat, lineE, zone);
+        var eMin = Math.ceil(utmL.easting / spacing) * spacing;
+        var eMax = Math.floor(utmR.easting / spacing) * spacing;
+        var rc = 0;
+        for (var e = eMin; e <= eMax; e += spacing) {
+          rc++;
+          var pt = utmToLatLng(e, utmL.northing, zone, lat >= 0);
+          features.push({ type: 'Feature', properties: { kind: 'red-tick' },
+            geometry: { type: 'LineString', coordinates: [[pt.lng, lat - tickH], [pt.lng, lat + tickH]] } });
+          features.push({ type: 'Feature', properties: { kind: 'red-num', label: String(rc) },
+            geometry: { type: 'Point', coordinates: [pt.lng, lat + tickH + 0.006] } });
+        }
+      }
+
+      // Blue ticks: Web Mercator tile grid crossings
+      var tileZ = Math.min(zoom + TILE_GRID_ZOOM_OFFSET, 22);
+      var n = Math.pow(2, tileZ);
+      var x0 = Math.ceil(n * ((lineW + 180) / 360));
+      var x1 = Math.floor(n * ((lineE + 180) / 360));
+      var bc = 0;
+      for (var x = x0; x <= x1; x++) {
+        var tileLng = (x / n) * 360 - 180;
+        if (tileLng > lineW && tileLng < lineE) {
+          bc++;
+          features.push({ type: 'Feature', properties: { kind: 'blue-tick' },
+            geometry: { type: 'LineString', coordinates: [[tileLng, lat - tickH], [tileLng, lat + tickH]] } });
+          features.push({ type: 'Feature', properties: { kind: 'blue-num', label: String(bc) },
+            geometry: { type: 'Point', coordinates: [tileLng, lat - tickH - 0.006] } });
+        }
+      }
+      return { type: 'FeatureCollection', features: features };
+    }
 
     var tourActive = false;
     var tourStep = 0;
@@ -1009,6 +1106,13 @@
 
       elTourPopup.style.display = '';
 
+      var mSrc = map.getSource('tour-measure');
+      if (mSrc) {
+        mSrc.setData(stop.measure
+          ? buildMeasureLine(stop.measure[0], stop.measure[1], stop.measureKm, stop.zoom)
+          : EMPTY_FC);
+      }
+
       map.flyTo({
         center: stop.center,
         zoom: stop.zoom,
@@ -1019,9 +1123,17 @@
       });
     }
 
+    function setMapInteraction(on) {
+      var methods = ['scrollZoom', 'boxZoom', 'dragRotate', 'dragPan', 'keyboard', 'doubleClickZoom', 'touchZoomRotate', 'touchPitch'];
+      for (var i = 0; i < methods.length; i++) {
+        if (map[methods[i]]) map[methods[i]][on ? 'enable' : 'disable']();
+      }
+    }
+
     function startTour() {
       tourActive = true;
       elTourBtn.style.display = 'none';
+      setMapInteraction(false);
       if (!globeEnabled) setGlobeEnabled(true);
       showTourStop(0);
     }
@@ -1030,6 +1142,9 @@
       tourActive = false;
       elTourPopup.style.display = 'none';
       elTourBtn.style.display = '';
+      setMapInteraction(true);
+      var mSrc = map.getSource('tour-measure');
+      if (mSrc) mSrc.setData(EMPTY_FC);
     }
 
     elTourBtn.addEventListener('click', startTour);
@@ -1103,6 +1218,88 @@
         paint: {
           'text-color': '#fca5a5',
           'text-halo-color': 'rgba(0, 0, 0, 0.65)',
+          'text-halo-width': 1.5
+        }
+      });
+
+      // Tour measurement line
+      map.addSource('tour-measure', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({
+        id: 'tour-measure-line',
+        type: 'line',
+        source: 'tour-measure',
+        filter: ['in', ['get', 'kind'], ['literal', ['line', 'cap']]],
+        paint: {
+          'line-color': '#22c55e',
+          'line-width': 3,
+          'line-opacity': 0.95
+        }
+      });
+      map.addLayer({
+        id: 'tour-measure-label',
+        type: 'symbol',
+        source: 'tour-measure',
+        filter: ['==', ['get', 'kind'], 'label'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 14,
+          'text-font': ['Open Sans Regular'],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true
+        },
+        paint: {
+          'text-color': '#22c55e',
+          'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+          'text-halo-width': 2
+        }
+      });
+      map.addLayer({
+        id: 'tour-measure-red-tick',
+        type: 'line',
+        source: 'tour-measure',
+        filter: ['==', ['get', 'kind'], 'red-tick'],
+        paint: { 'line-color': '#f87171', 'line-width': 3, 'line-opacity': 1 }
+      });
+      map.addLayer({
+        id: 'tour-measure-blue-tick',
+        type: 'line',
+        source: 'tour-measure',
+        filter: ['==', ['get', 'kind'], 'blue-tick'],
+        paint: { 'line-color': '#60a5fa', 'line-width': 3, 'line-opacity': 1 }
+      });
+      map.addLayer({
+        id: 'tour-measure-red-num',
+        type: 'symbol',
+        source: 'tour-measure',
+        filter: ['==', ['get', 'kind'], 'red-num'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 10,
+          'text-font': ['Open Sans Regular'],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true
+        },
+        paint: {
+          'text-color': '#f87171',
+          'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+          'text-halo-width': 1.5
+        }
+      });
+      map.addLayer({
+        id: 'tour-measure-blue-num',
+        type: 'symbol',
+        source: 'tour-measure',
+        filter: ['==', ['get', 'kind'], 'blue-num'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 10,
+          'text-font': ['Open Sans Regular'],
+          'text-anchor': 'top',
+          'text-allow-overlap': true
+        },
+        paint: {
+          'text-color': '#60a5fa',
+          'text-halo-color': 'rgba(0, 0, 0, 0.9)',
           'text-halo-width': 1.5
         }
       });
