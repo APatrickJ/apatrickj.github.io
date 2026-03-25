@@ -953,6 +953,7 @@
       },
       {
         center: [-117.0, 65.0], zoom: 6, pitch: 0, bearing: 0,
+        projection: 'mercator',
         title: 'Inside a UTM Zone: The Northing Curve',
         body: 'You\'re looking across the full east-west width of UTM zone 11 in northern Canada. ' +
               'The <span style="color:#991b1b">solid red zone boundaries</span> are visible on the ' +
@@ -967,6 +968,7 @@
       },
       {
         center: [-69.0, -60.0], zoom: 6, pitch: 0, bearing: 0,
+        projection: 'mercator',
         title: 'Southern Hemisphere: Mirrored',
         body: 'Now look at a UTM zone in Patagonia, at a similar latitude but in the southern ' +
               'hemisphere. The <span class="c-red">dashed red northing lines</span> are again ' +
@@ -1107,6 +1109,12 @@
 
       elTourPopup.style.display = '';
 
+      var wantGlobe = (stop.projection || 'globe') === 'globe';
+      if (wantGlobe !== globeEnabled) {
+        setGlobeEnabled(wantGlobe);
+        setMapInteraction(false);
+      }
+
       var mSrc = map.getSource('tour-measure');
       if (mSrc) {
         mSrc.setData(stop.measure
@@ -1131,8 +1139,11 @@
       }
     }
 
+    var preTourGlobe = false;
+
     function startTour() {
       tourActive = true;
+      preTourGlobe = globeEnabled;
       elTourBtn.style.display = 'none';
       setMapInteraction(false);
       if (!globeEnabled) setGlobeEnabled(true);
@@ -1144,6 +1155,7 @@
       elTourPopup.style.display = 'none';
       elTourBtn.style.display = '';
       setMapInteraction(true);
+      if (globeEnabled !== preTourGlobe) setGlobeEnabled(preTourGlobe);
       var mSrc = map.getSource('tour-measure');
       if (mSrc) mSrc.setData(EMPTY_FC);
     }
