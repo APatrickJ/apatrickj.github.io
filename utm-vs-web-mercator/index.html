@@ -896,11 +896,13 @@
       if (on) {
         map.setProjection({ type: 'globe' });
         map.setSky({ 'atmosphere-blend': 0.8 });
+        document.getElementById('map').style.background = '#000';
         map.dragRotate.enable();
         map.touchPitch.enable();
       } else {
         map.setProjection({ type: 'mercator' });
         map.setSky({ 'atmosphere-blend': 0 });
+        document.getElementById('map').style.background = '';
         map.setPitch(0);
         map.setBearing(0);
       }
@@ -1005,7 +1007,7 @@
       elTourNext.style.display = idx === TOUR_STOPS.length - 1 ? 'none' : '';
       elTourEnd.textContent = idx === TOUR_STOPS.length - 1 ? 'Finish' : 'End Tour';
 
-      elTourPopup.style.display = 'none';
+      elTourPopup.style.display = '';
 
       map.flyTo({
         center: stop.center,
@@ -1014,10 +1016,6 @@
         bearing: stop.bearing,
         duration: 3000,
         essential: true
-      });
-
-      map.once('moveend', function () {
-        if (tourActive) elTourPopup.style.display = '';
       });
     }
 
