@@ -352,7 +352,7 @@
         higher latitudes.
       </p>
       <details>
-        <summary>About these projections</summary>
+        <summary>About these coordinate systems</summary>
         <ul>
           <li>
             <span class="c-blue">Web Mercator</span> is a single global
@@ -360,9 +360,10 @@
             aligned to geographic north (latitude/longitude axes).
           </li>
           <li>
-            <span class="c-red">UTM</span> divides the world into 60 zones
-            of 6&deg; longitude each. Each zone uses a Transverse Mercator
-            projection centered on its central meridian.
+            <span class="c-red">UTM</span> (Universal Transverse Mercator) is
+            a coordinate system that divides the world into 60 zones of 6&deg;
+            longitude each. Each zone uses its own Transverse Mercator projection
+            centered on its central meridian.
           </li>
           <li>
             Grid north equals true north only along a zone's central meridian.
@@ -920,7 +921,7 @@
         title: 'Two Ways to Grid the Earth',
         body: '<span class="c-blue">Web Mercator</span> is the single global projection behind ' +
               'virtually every web map. Its tile grid is always aligned to latitude and longitude, ' +
-              'making it simple and universal, but it distorts shape and area increasingly toward the poles.' +
+              'making it simple and universal, but its scale grows increasingly distorted toward the poles.' +
               '<br><br>' +
               'The <span class="c-red">UTM</span> (Universal Transverse Mercator) system takes a ' +
               'different approach. It divides the world into 60 zones of 6\u00b0 longitude each. ' +
@@ -937,7 +938,7 @@
         title: 'Near the Equator: Nearly Identical',
         body: 'Here near Quito, Ecuador, the <span class="c-red">UTM grid</span> and ' +
               '<span class="c-blue">Web Mercator grid</span> are almost perfectly aligned. At the ' +
-              'equator, meridians run nearly parallel, so the Transverse Mercator projection barely ' +
+              'equator, meridians run nearly parallel, so each zone\'s Transverse Mercator projection barely ' +
               'rotates the grid relative to geographic north. The convergence angle (shown in the compass) ' +
               'is close to zero.'
       },
@@ -1004,11 +1005,11 @@
               'the equator. But now count the <span class="c-blue">blue ticks</span>: roughly 12, ' +
               'more than double. Each blue gap has shrunk to about 4 km.' +
               '<br><br>' +
-              'Both projections are conformal (they preserve local angles and shapes), but they ' +
-              'handle scale differently. The <span class="c-red">UTM grid</span> keeps scale ' +
-              'nearly uniform within each zone, so grid cells represent consistent ground distances. ' +
-              'The <span class="c-blue">Web Mercator grid</span> preserves angles globally but lets ' +
-              'scale vary freely with latitude, so its tiles cover less and less ground toward the poles.'
+              'Both coordinate systems use conformal projections (preserving local angles and shapes), ' +
+              'but they handle scale differently. UTM\'s Transverse Mercator keeps scale nearly uniform ' +
+              'within each zone, so grid cells represent consistent ground distances. ' +
+              'Web Mercator preserves angles globally but lets scale vary freely with latitude, ' +
+              'so its tiles cover less and less ground toward the poles.'
       }
     ];
 
