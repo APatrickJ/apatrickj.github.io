@@ -247,6 +247,21 @@
 
     .tour-nav-primary:hover { background: rgba(96, 165, 250, 0.35); }
 
+    #tour-popup .c-red,
+    #tour-popup .c-blue,
+    #tour-popup .c-green {
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 2px;
+    }
+
+    #tour-popup .c-red:hover,
+    #tour-popup .c-blue:hover,
+    #tour-popup .c-green:hover {
+      text-decoration-style: solid;
+    }
+
     /* ---- Info Bar ---- */
     #info {
       bottom: 12px;
@@ -981,7 +996,7 @@
               'horizontal ones). At the central meridian they are perfectly flat, but toward the ' +
               'zone edges they curve downward, dipping toward the equator. The result is a gentle ' +
               'arch, highest in the middle. Compare with the ' +
-              '<span class="c-blue">blue Web Mercator lines</span>, which stay perfectly horizontal.'
+              '<span style="color:#60a5fa">blue Web Mercator lines</span>, which stay perfectly horizontal.'
       },
       {
         center: [-69.0, -60.0], zoom: 6, pitch: 0, bearing: 0,
@@ -1009,8 +1024,8 @@
         measure: [37.5, 0.15], measureKm: 50,
         title: 'Measuring at the Equator',
         body: 'One last comparison. The <span class="c-green">green line</span> is exactly 50 km. ' +
-              'Count the numbered tick marks: it crosses 10 <span class="c-red">red UTM easting ' +
-              'lines</span> and about 5 <span class="c-blue">blue Web Mercator tile lines</span>. ' +
+              'Count the numbered tick marks: it crosses 10 <span style="color:#f87171">red UTM easting ' +
+              'lines</span> and about 5 <span style="color:#60a5fa">blue Web Mercator tile lines</span>. ' +
               'Each red gap is 5 km on the ground; each blue gap is about 10 km.' +
               '<br><br>' +
               'Keep those numbers in mind as we fly to Alaska.'
@@ -1019,9 +1034,9 @@
         center: [-147.0, 64.85], zoom: 9, pitch: 0, bearing: 0,
         measure: [-147.0, 64.91], measureKm: 50,
         title: 'Measuring at 65\u00b0 North',
-        body: 'Same 50 km, same zoom, same grid density. The line still crosses 10 ' +
-              '<span class="c-red">red UTM lines</span>: each gap is still 5 km, just like at ' +
-              'the equator. But now count the <span class="c-blue">blue ticks</span>: roughly 12, ' +
+        body: 'Same 50 km, same zoom, same grid density. The <span class="c-green">green line</span> still crosses 10 ' +
+              '<span style="color:#f87171">red UTM lines</span>: each gap is still 5 km, just like at ' +
+              'the equator. But now count the <span style="color:#60a5fa">blue ticks</span>: roughly 12, ' +
               'more than double. Each blue gap has shrunk to about 4 km.' +
               '<br><br>' +
               'Both coordinate systems use conformal projections (preserving local angles and shapes), ' +
@@ -1114,6 +1129,100 @@
     var elTourNext = document.getElementById('tour-next');
     var elTourEnd = document.getElementById('tour-end');
 
+    var HIGHLIGHT_GROUPS = {
+      red:   { line: ['utm-grid', 'utm-boundaries'], symbol: ['utm-labels'] },
+      blue:  { line: ['tile-grid'], symbol: [] },
+      green: { line: ['tour-measure-line', 'tour-measure-red-tick', 'tour-measure-blue-tick'],
+               symbol: ['tour-measure-label', 'tour-measure-red-num', 'tour-measure-blue-num'] }
+    };
+
+    var ALL_HL_LINE = ['utm-grid', 'utm-boundaries', 'tile-grid',
+                       'tour-measure-line', 'tour-measure-red-tick', 'tour-measure-blue-tick'];
+    var ALL_HL_SYM  = ['utm-labels', 'tour-measure-label', 'tour-measure-red-num', 'tour-measure-blue-num'];
+
+    var defaultOpacity = {
+      'utm-grid': 0.75, 'utm-boundaries': 0.85, 'tile-grid': 0.6,
+      'tour-measure-line': 0.95, 'tour-measure-red-tick': 1, 'tour-measure-blue-tick': 1
+    };
+    var defaultTextOpacity = {
+      'utm-labels': 1, 'tour-measure-label': 1, 'tour-measure-red-num': 1, 'tour-measure-blue-num': 1
+    };
+
+    var defaultWidth = {
+      'utm-grid': ['interpolate', ['linear'], ['zoom'], 0, 1.5, 6, 1.2, 14, 1],
+      'utm-boundaries': ['interpolate', ['linear'], ['zoom'], 0, 2.5, 6, 2, 14, 1.5]
+    };
+    var boldWidth = {
+      'utm-grid': ['interpolate', ['linear'], ['zoom'], 0, 3.5, 6, 3, 14, 2.5],
+      'utm-boundaries': ['interpolate', ['linear'], ['zoom'], 0, 4.5, 6, 4, 14, 3]
+    };
+
+    var hlActive = false;
+    var hlProtectMeasure = false;
+    var hlBoldRed = false;
+
+    var MEASURE_LINE_IDS = ['tour-measure-line', 'tour-measure-red-tick', 'tour-measure-blue-tick'];
+    var MEASURE_SYM_IDS = ['tour-measure-label', 'tour-measure-red-num', 'tour-measure-blue-num'];
+
+    function highlightLayers(group) {
+      var g = HIGHLIGHT_GROUPS[group];
+      if (!g) return;
+      hlActive = true;
+      var activeLine = g.line;
+      var activeSym = g.symbol;
+      for (var i = 0; i < ALL_HL_LINE.length; i++) {
+        var id = ALL_HL_LINE[i];
+        var isActive = activeLine.indexOf(id) >= 0;
+        var isProtected = hlProtectMeasure && MEASURE_LINE_IDS.indexOf(id) >= 0;
+        map.setPaintProperty(id, 'line-opacity-transition', { duration: 300 });
+        map.setPaintProperty(id, 'line-opacity', (isActive || isProtected) ? (defaultOpacity[id] || 1) : 0.12);
+        if (boldWidth[id]) {
+          map.setPaintProperty(id, 'line-width-transition', { duration: 300 });
+          map.setPaintProperty(id, 'line-width', (isActive && hlBoldRed) ? boldWidth[id] : defaultWidth[id]);
+        }
+      }
+      for (var i = 0; i < ALL_HL_SYM.length; i++) {
+        var id = ALL_HL_SYM[i];
+        var isActive = activeSym.indexOf(id) >= 0;
+        var isProtected = hlProtectMeasure && MEASURE_SYM_IDS.indexOf(id) >= 0;
+        map.setPaintProperty(id, 'text-opacity-transition', { duration: 300 });
+        map.setPaintProperty(id, 'text-opacity', (isActive || isProtected) ? (defaultTextOpacity[id] || 1) : 0.12);
+      }
+    }
+
+    function clearHighlight() {
+      if (!hlActive) return;
+      hlActive = false;
+      for (var i = 0; i < ALL_HL_LINE.length; i++) {
+        var id = ALL_HL_LINE[i];
+        map.setPaintProperty(id, 'line-opacity-transition', { duration: 300 });
+        map.setPaintProperty(id, 'line-opacity', defaultOpacity[id] || 1);
+        if (defaultWidth[id]) {
+          map.setPaintProperty(id, 'line-width-transition', { duration: 300 });
+          map.setPaintProperty(id, 'line-width', defaultWidth[id]);
+        }
+      }
+      for (var i = 0; i < ALL_HL_SYM.length; i++) {
+        var id = ALL_HL_SYM[i];
+        map.setPaintProperty(id, 'text-opacity-transition', { duration: 300 });
+        map.setPaintProperty(id, 'text-opacity', defaultTextOpacity[id] || 1);
+      }
+    }
+
+    var autoPulseTimers = [];
+
+    function clearAutoPulse() {
+      for (var i = 0; i < autoPulseTimers.length; i++) clearTimeout(autoPulseTimers[i]);
+      autoPulseTimers = [];
+    }
+
+    function groupFromSpan(el) {
+      if (el.classList.contains('c-red')) return 'red';
+      if (el.classList.contains('c-blue')) return 'blue';
+      if (el.classList.contains('c-green')) return 'green';
+      return null;
+    }
+
     function showTourStop(idx) {
       tourStep = idx;
       var stop = TOUR_STOPS[idx];
@@ -1125,6 +1234,24 @@
       elTourEnd.textContent = idx === TOUR_STOPS.length - 1 ? 'Finish' : 'End Tour';
 
       elTourPopup.style.display = '';
+
+      // Clear any in-flight highlights and auto-pulse timers
+      clearAutoPulse();
+      clearHighlight();
+      hlProtectMeasure = !!stop.measure;
+      hlBoldRed = (stop.projection === 'mercator');
+
+      // Hover listeners on colored spans
+      var spans = elTourBody.querySelectorAll('.c-red, .c-blue, .c-green');
+      for (var i = 0; i < spans.length; i++) {
+        (function (span) {
+          span.addEventListener('mouseenter', function () {
+            clearAutoPulse();
+            highlightLayers(groupFromSpan(span));
+          });
+          span.addEventListener('mouseleave', function () { clearHighlight(); });
+        })(spans[i]);
+      }
 
       var wantGlobe = (stop.projection || 'globe') === 'globe';
       if (wantGlobe !== globeEnabled) {
@@ -1147,6 +1274,24 @@
         duration: 3000,
         essential: true
       });
+
+      // Auto-pulse: after flyTo finishes, highlight each referenced group in sequence
+      var seen = {};
+      var groups = [];
+      for (var i = 0; i < spans.length; i++) {
+        var g = groupFromSpan(spans[i]);
+        if (g && !seen[g]) { seen[g] = true; groups.push(g); }
+      }
+      if (groups.length > 0) {
+        var pulseDelay = 3200;
+        var pulseDuration = 1500;
+        for (var i = 0; i < groups.length; i++) {
+          (function (group, delay) {
+            autoPulseTimers.push(setTimeout(function () { highlightLayers(group); }, delay));
+            autoPulseTimers.push(setTimeout(function () { clearHighlight(); }, delay + pulseDuration));
+          })(groups[i], pulseDelay + i * (pulseDuration + 400));
+        }
+      }
     }
 
     function setMapInteraction(on) {
@@ -1169,6 +1314,8 @@
 
     function endTour() {
       tourActive = false;
+      clearAutoPulse();
+      clearHighlight();
       elTourPopup.style.display = 'none';
       elTourBtn.style.display = '';
       setMapInteraction(true);
