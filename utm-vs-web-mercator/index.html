@@ -171,6 +171,82 @@
       margin: 0;
     }
 
+    .tour-btn {
+      background: rgba(96, 165, 250, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .tour-btn:hover {
+      background: rgba(96, 165, 250, 0.25);
+      border-color: rgba(96, 165, 250, 0.5);
+    }
+
+    /* ---- Tour Popup ---- */
+    #tour-popup {
+      bottom: 80px;
+      left: 12px;
+      max-width: 380px;
+      padding: 20px 24px;
+    }
+
+    #tour-popup .tour-step {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    #tour-popup h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 8px;
+    }
+
+    #tour-popup p {
+      font-size: 13px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+    }
+
+    .tour-nav {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tour-nav-btn {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .tour-nav-btn:hover { background: rgba(100, 116, 139, 0.35); }
+
+    .tour-nav-primary {
+      background: rgba(96, 165, 250, 0.2);
+      color: #93c5fd;
+      border-color: rgba(96, 165, 250, 0.3);
+    }
+
+    .tour-nav-primary:hover { background: rgba(96, 165, 250, 0.35); }
+
     /* ---- Info Bar ---- */
     #info {
       bottom: 12px;
@@ -248,6 +324,12 @@
       .attribution { display: none; }
 
       #convergence-svg { width: 48px; height: 48px; }
+
+      #tour-popup {
+        max-width: none;
+        right: 12px;
+        bottom: 74px;
+      }
     }
   </style>
 </head>
@@ -309,6 +391,21 @@
     </div>
     <div class="legend-toggle">
       <label><input type="checkbox" id="globe-toggle"> 3D Globe view</label>
+    </div>
+    <div class="legend-toggle">
+      <button id="tour-btn" class="tour-btn">Take a Tour</button>
+    </div>
+  </div>
+
+  <!-- Tour Popup -->
+  <div id="tour-popup" class="panel" style="display:none">
+    <div class="tour-step" id="tour-step"></div>
+    <h2 id="tour-title"></h2>
+    <p id="tour-body"></p>
+    <div class="tour-nav">
+      <button id="tour-prev" class="tour-nav-btn">Back</button>
+      <button id="tour-next" class="tour-nav-btn tour-nav-primary">Next</button>
+      <button id="tour-end" class="tour-nav-btn">End Tour</button>
     </div>
   </div>
 
@@ -813,6 +910,138 @@
     elGlobeToggle.addEventListener('change', function () {
       setGlobeEnabled(elGlobeToggle.checked);
     });
+
+    // ---- Guided Tour ----
+    var TOUR_STOPS = [
+      {
+        center: [10, 20], zoom: 2.5, pitch: 0, bearing: 0,
+        title: 'Two Ways to Grid the Earth',
+        body: '<span class="c-blue">Web Mercator</span> is the single global projection behind ' +
+              'virtually every web map. Its tile grid is always aligned to latitude and longitude, ' +
+              'making it simple and universal, but it distorts shape and area increasingly toward the poles.' +
+              '<br><br>' +
+              'The <span class="c-red">UTM</span> (Universal Transverse Mercator) system takes a ' +
+              'different approach. It divides the world into 60 zones of 6\u00b0 longitude each. ' +
+              'Each zone gets its own Transverse Mercator projection: imagine wrapping a cylinder ' +
+              'around the Earth sideways, tangent to one meridian, then unrolling it. This keeps ' +
+              'distortion low within each narrow zone.' +
+              '<br><br>' +
+              'The key difference: within a UTM zone, the grid is "straight," but it only aligns with ' +
+              'true north along the zone\'s central meridian. Everywhere else, grid north diverges from ' +
+              'geographic north. Let\'s fly to a few places to see how this plays out.'
+      },
+      {
+        center: [-78.5, -0.22], zoom: 9, pitch: 0, bearing: 0,
+        title: 'Near the Equator: Nearly Identical',
+        body: 'Here near Quito, Ecuador, the <span class="c-red">UTM grid</span> and ' +
+              '<span class="c-blue">Web Mercator grid</span> are almost perfectly aligned. At the ' +
+              'equator, meridians run nearly parallel, so the Transverse Mercator projection barely ' +
+              'rotates the grid relative to geographic north. The convergence angle (shown in the compass) ' +
+              'is close to zero.'
+      },
+      {
+        center: [-122.33, 47.61], zoom: 9, pitch: 0, bearing: 0,
+        title: 'Mid-Latitudes: The Grids Diverge',
+        body: 'Around Seattle at 47\u00b0N, the difference becomes clear. The <span class="c-red">' +
+              'red UTM lines</span> visibly tilt relative to the <span class="c-blue">blue Web Mercator ' +
+              'lines</span>. The horizontal northing lines bow toward the pole. This happens because ' +
+              'meridians converge at higher latitudes, so "grid north" in UTM increasingly differs from ' +
+              'true geographic north as you move away from the zone\'s central meridian.'
+      },
+      {
+        center: [-117.0, 55.0], zoom: 6, pitch: 0, bearing: 0,
+        title: 'Inside a UTM Zone: The Northing Curve',
+        body: 'You\'re looking across the full east-west width of UTM zone 11 in western Canada. ' +
+              'The <span style="color:#991b1b">solid red zone boundaries</span> are visible on the ' +
+              'left (-120\u00b0) and right (-114\u00b0), with the central meridian at -117\u00b0 ' +
+              'running straight down the middle.' +
+              '<br><br>' +
+              'Look at the <span class="c-red">dashed red northing lines</span> (the roughly ' +
+              'horizontal ones). At the central meridian they are perfectly flat, but toward the ' +
+              'zone edges they curve downward, dipping toward the equator. The result is a gentle ' +
+              'arch, highest in the middle. Compare with the ' +
+              '<span class="c-blue">blue Web Mercator lines</span>, which stay perfectly horizontal.'
+      },
+      {
+        center: [-69.0, -50.0], zoom: 6, pitch: 0, bearing: 0,
+        title: 'Southern Hemisphere: Mirrored',
+        body: 'Now look at a UTM zone in Patagonia, at a similar latitude but in the southern ' +
+              'hemisphere. The <span class="c-red">dashed red northing lines</span> are again ' +
+              'flat at the central meridian, but this time the edges curve upward toward the ' +
+              'equator: a shallow valley, lowest in the middle.' +
+              '<br><br>' +
+              'In both hemispheres the edges always curve toward the equator. ' +
+              'The further from the equator, the more pronounced the curve.'
+      },
+      {
+        center: [19.0, 69.65], zoom: 9, pitch: 0, bearing: 0,
+        title: 'High Latitudes: Dramatic Divergence',
+        body: 'Near Troms\u00f8, Norway at almost 70\u00b0N, the two grids are strikingly different. ' +
+              'The convergence angle is large, the <span class="c-red">UTM northing lines</span> arch ' +
+              'prominently toward the pole, and the entire red grid is visibly rotated relative to the ' +
+              '<span class="c-blue">blue Web Mercator grid</span>. This is why choosing the right ' +
+              'coordinate system matters for surveying and navigation at high latitudes.'
+      }
+    ];
+
+    var tourActive = false;
+    var tourStep = 0;
+    var elTourBtn = document.getElementById('tour-btn');
+    var elTourPopup = document.getElementById('tour-popup');
+    var elTourStep = document.getElementById('tour-step');
+    var elTourTitle = document.getElementById('tour-title');
+    var elTourBody = document.getElementById('tour-body');
+    var elTourPrev = document.getElementById('tour-prev');
+    var elTourNext = document.getElementById('tour-next');
+    var elTourEnd = document.getElementById('tour-end');
+
+    function showTourStop(idx) {
+      tourStep = idx;
+      var stop = TOUR_STOPS[idx];
+      elTourStep.textContent = 'Step ' + (idx + 1) + ' of ' + TOUR_STOPS.length;
+      elTourTitle.textContent = stop.title;
+      elTourBody.innerHTML = stop.body;
+      elTourPrev.style.display = idx === 0 ? 'none' : '';
+      elTourNext.style.display = idx === TOUR_STOPS.length - 1 ? 'none' : '';
+      elTourEnd.textContent = idx === TOUR_STOPS.length - 1 ? 'Finish' : 'End Tour';
+
+      elTourPopup.style.display = 'none';
+
+      map.flyTo({
+        center: stop.center,
+        zoom: stop.zoom,
+        pitch: stop.pitch,
+        bearing: stop.bearing,
+        duration: 3000,
+        essential: true
+      });
+
+      map.once('moveend', function () {
+        if (tourActive) elTourPopup.style.display = '';
+      });
+    }
+
+    function startTour() {
+      tourActive = true;
+      elTourBtn.style.display = 'none';
+      if (!globeEnabled) setGlobeEnabled(true);
+      showTourStop(0);
+    }
+
+    function endTour() {
+      tourActive = false;
+      elTourPopup.style.display = 'none';
+      elTourBtn.style.display = '';
+    }
+
+    elTourBtn.addEventListener('click', startTour);
+    elTourPrev.addEventListener('click', function () {
+      if (tourStep > 0) showTourStop(tourStep - 1);
+    });
+    elTourNext.addEventListener('click', function () {
+      if (tourStep < TOUR_STOPS.length - 1) showTourStop(tourStep + 1);
+    });
+    elTourEnd.addEventListener('click', endTour);
 
     // ---- Map load ----
     map.on('load', function () {
