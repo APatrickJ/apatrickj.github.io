@@ -191,7 +191,7 @@
 
     /* ---- Tour Popup ---- */
     #tour-popup {
-      bottom: 80px;
+      bottom: 120px;
       left: 12px;
       max-width: 380px;
       padding: 20px 24px;
@@ -259,6 +259,14 @@
     }
 
     #convergence-svg { flex-shrink: 0; }
+
+    .compass-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+    }
 
     .stats-row {
       display: flex;
@@ -328,7 +336,7 @@
       #tour-popup {
         max-width: none;
         right: 12px;
-        bottom: 74px;
+        bottom: 120px;
       }
     }
   </style>
@@ -412,17 +420,20 @@
 
   <!-- Info Bar -->
   <div id="info" class="panel">
-    <svg id="convergence-svg" width="64" height="64" viewBox="0 0 64 64" aria-label="Convergence angle compass">
-      <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(100,116,139,0.25)" stroke-width="1"/>
-      <line x1="32" y1="4" x2="32" y2="8" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
-      <line x1="32" y1="56" x2="32" y2="60" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
-      <line x1="4" y1="32" x2="8" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
-      <line x1="56" y1="32" x2="60" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
-      <path id="conv-arc" d="" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" stroke-width="1"/>
-      <line id="true-north" x1="32" y1="32" x2="32" y2="8" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
-      <line id="utm-north" x1="32" y1="32" x2="32" y2="8" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" opacity="0.9" style="transform-origin:32px 32px;transition:transform .12s ease-out"/>
-      <text x="32" y="3" text-anchor="middle" font-size="7" font-weight="700" fill="#64748b">N</text>
-    </svg>
+    <div class="compass-group">
+      <svg id="convergence-svg" width="64" height="64" viewBox="0 0 64 64" aria-label="Convergence angle compass">
+        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(100,116,139,0.25)" stroke-width="1"/>
+        <line x1="32" y1="4" x2="32" y2="8" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+        <line x1="32" y1="56" x2="32" y2="60" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+        <line x1="4" y1="32" x2="8" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+        <line x1="56" y1="32" x2="60" y2="32" stroke="rgba(100,116,139,0.4)" stroke-width="1"/>
+        <path id="conv-arc" d="" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" stroke-width="1"/>
+        <line id="true-north" x1="32" y1="32" x2="32" y2="8" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+        <line id="utm-north" x1="32" y1="32" x2="32" y2="8" stroke="#f87171" stroke-width="2.5" stroke-linecap="round" opacity="0.9" style="transform-origin:32px 32px;transition:transform .12s ease-out"/>
+        <text x="32" y="3" text-anchor="middle" font-size="7" font-weight="700" fill="#64748b">N</text>
+      </svg>
+      <span class="stat-value c-amber" id="v-conv" style="font-size:12px">--</span>
+    </div>
 
     <div class="stats-row">
       <div class="stat">
@@ -430,8 +441,8 @@
         <span class="stat-value c-red" id="v-zone">--</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Convergence</span>
-        <span class="stat-value c-amber" id="v-conv">--</span>
+        <span class="stat-label">UTM Easting / Northing</span>
+        <span class="stat-value c-red" id="v-utm">--</span>
       </div>
       <div class="stat">
         <span class="stat-label">Central Meridian</span>
@@ -825,6 +836,7 @@
 
     // ---- DOM refs ----
     var elZone = document.getElementById('v-zone');
+    var elUtmCoord = document.getElementById('v-utm');
     var elConv = document.getElementById('v-conv');
     var elCM = document.getElementById('v-cm');
     var elTile = document.getElementById('v-tile');
@@ -844,7 +856,9 @@
       var u = utmInfo(lat, lng);
       var t = tileXYZ(lat, lng, z);
 
+      var utm = latLngToUTM(lat, lng, u.zone);
       elZone.textContent = u.zone + u.band;
+      elUtmCoord.textContent = Math.round(utm.easting) + 'E  ' + Math.round(utm.northing) + 'N';
       elConv.textContent = u.conv.toFixed(2) + '\u00B0';
       elCM.textContent = u.cm + '\u00B0';
       elTile.textContent = t.x + ', ' + t.y + ', ' + t.z;
