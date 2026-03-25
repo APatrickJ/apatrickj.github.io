@@ -433,6 +433,7 @@
         <text x="32" y="3" text-anchor="middle" font-size="7" font-weight="700" fill="#64748b">N</text>
       </svg>
       <span class="stat-value c-amber" id="v-conv" style="font-size:12px">--</span>
+      <span style="font-size:8px;color:#64748b">exaggerated 15&times;</span>
     </div>
 
     <div class="stats-row">
@@ -864,24 +865,26 @@
       elTile.textContent = t.x + ', ' + t.y + ', ' + t.z;
       elPos.textContent = lat.toFixed(3) + '\u00B0, ' + lng.toFixed(3) + '\u00B0';
 
-      // Rotate UTM north needle via CSS transform
-      elUtmNorth.style.transform = 'rotate(' + u.conv + 'deg)';
+      // Rotate UTM north needle via CSS transform (exaggerated for visibility)
+      var COMPASS_SCALE = 15;
+      var visualConv = u.conv * COMPASS_SCALE;
+      elUtmNorth.style.transform = 'rotate(' + visualConv + 'deg)';
 
-      // Convergence arc wedge
+      // Convergence arc wedge (also exaggerated)
       if (Math.abs(u.conv) < 0.05) {
         elConvArc.setAttribute('d', '');
       } else {
         var cx = 32, cy = 32, radius = 16;
         var startAngle = -90;
-        var endAngle = -90 + u.conv;
+        var endAngle = -90 + visualConv;
         var startRad = startAngle * Math.PI / 180;
         var endRad = endAngle * Math.PI / 180;
         var sx = cx + radius * Math.cos(startRad);
         var sy = cy + radius * Math.sin(startRad);
         var ex = cx + radius * Math.cos(endRad);
         var ey = cy + radius * Math.sin(endRad);
-        var largeArc = Math.abs(u.conv) > 180 ? 1 : 0;
-        var sweep = u.conv > 0 ? 1 : 0;
+        var largeArc = Math.abs(visualConv) > 180 ? 1 : 0;
+        var sweep = visualConv > 0 ? 1 : 0;
         elConvArc.setAttribute('d',
           'M ' + cx + ' ' + cy +
           ' L ' + sx + ' ' + sy +
