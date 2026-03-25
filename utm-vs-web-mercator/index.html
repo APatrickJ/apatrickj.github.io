@@ -461,6 +461,10 @@
         <span class="stat-value c-red" id="v-utm">--</span>
       </div>
       <div class="stat">
+        <span class="stat-label">Scale Factor</span>
+        <span class="stat-value c-red" id="v-scale">--</span>
+      </div>
+      <div class="stat">
         <span class="stat-label">Central Meridian</span>
         <span class="stat-value c-red" id="v-cm">--</span>
       </div>
@@ -658,7 +662,8 @@
       var northing = UTM_K0 * (M + N * tp * (A2 / 2 + (5 - T + 9 * C + 4 * C * C) * A4 / 24
                    + (61 - 58 * T + T * T + 600 * C - 330 * WGS84_EP2) * A6 / 720));
       if (lat < 0) northing += 10000000;
-      return { easting: easting, northing: northing };
+      var k = UTM_K0 * (1 + (1 + C) * A2 / 2);
+      return { easting: easting, northing: northing, k: k };
     }
 
     function utmToLatLng(easting, northing, zone, northern) {
@@ -853,6 +858,7 @@
     // ---- DOM refs ----
     var elZone = document.getElementById('v-zone');
     var elUtmCoord = document.getElementById('v-utm');
+    var elScale = document.getElementById('v-scale');
     var elConv = document.getElementById('v-conv');
     var elCM = document.getElementById('v-cm');
     var elTile = document.getElementById('v-tile');
@@ -875,6 +881,7 @@
       var utm = latLngToUTM(lat, lng, u.zone);
       elZone.textContent = u.zone + u.band;
       elUtmCoord.textContent = Math.round(utm.easting) + 'E  ' + Math.round(utm.northing) + 'N';
+      elScale.textContent = utm.k.toFixed(6);
       elConv.textContent = u.conv.toFixed(2) + '\u00B0';
       elCM.textContent = u.cm + '\u00B0';
       elTile.textContent = t.x + ', ' + t.y + ', ' + t.z;
