@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UTM vs Web Mercator</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
-  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -150,6 +150,27 @@
       height: 2px;
     }
 
+    .legend-toggle {
+      border-top: 1px solid rgba(100,116,139,0.15);
+      padding-top: 6px;
+      margin-top: 2px;
+    }
+
+    .legend-toggle label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .legend-toggle input[type="checkbox"] {
+      accent-color: #60a5fa;
+      margin: 0;
+    }
+
     /* ---- Info Bar ---- */
     #info {
       bottom: 12px;
@@ -286,6 +307,9 @@
       <div class="legend-line dashed" style="color:#60a5fa"></div>
       <span><strong style="color:#e2e8f0">Web Mercator Tile Grid</strong><br>Always axis-aligned to lat/lng; the grid every web map uses under the hood</span>
     </div>
+    <div class="legend-toggle">
+      <label><input type="checkbox" id="globe-toggle"> 3D Globe view</label>
+    </div>
   </div>
 
   <!-- Info Bar -->
@@ -348,6 +372,7 @@
       isFinite(hashParams.lat) ? hashParams.lat : 47.6
     ];
     var initZoom = isFinite(hashParams.z) ? hashParams.z : 5;
+    var initGlobe = hashParams.globe === 1;
 
     // ---- Map ----
     var map = new maplibregl.Map({
@@ -421,8 +446,10 @@
       var z = Math.min(Math.floor(map.getZoom()) + TILE_GRID_ZOOM_OFFSET, 22);
       var n = Math.pow(2, z);
 
-      var west = Math.max(bounds.getWest(), -179.999);
-      var east = Math.min(bounds.getEast(), 179.999);
+      var rawW = bounds.getWest(), rawE = bounds.getEast();
+      var crossesAM = rawW < -180 || rawE > 180 || rawW > rawE;
+      var west = crossesAM ? -179.999 : Math.max(rawW, -179.999);
+      var east = crossesAM ? 179.999 : Math.min(rawE, 179.999);
       var south = Math.max(bounds.getSouth(), -85);
       var north = Math.min(bounds.getNorth(), 85);
 
@@ -442,13 +469,22 @@
 
       var features = [];
 
+      // Densify lines with intermediate vertices so they follow
+      // the globe surface instead of cutting through the interior.
+      var STEP = 2;
+
       for (var x = x0; x <= x1 + 1; x++) {
         var lng = (x / n) * 360 - 180;
         if (lng >= -180 && lng <= 180) {
+          var coords = [];
+          var s = Math.max(south - 1, -85);
+          var nn = Math.min(north + 1, 85);
+          for (var la = s; la < nn; la += STEP) coords.push([lng, la]);
+          coords.push([lng, nn]);
           features.push({
             type: 'Feature',
             properties: {},
-            geometry: { type: 'LineString', coordinates: [[lng, south - 1], [lng, north + 1]] }
+            geometry: { type: 'LineString', coordinates: coords }
           });
         }
       }
@@ -456,10 +492,15 @@
       for (var y = y0; y <= y1 + 1; y++) {
         var lat = ty2lat(Math.min(y, n));
         if (lat >= -85.051 && lat <= 85.051) {
+          var coords = [];
+          var w = Math.max(west - 1, -180);
+          var e = Math.min(east + 1, 180);
+          for (var lo = w; lo < e; lo += STEP) coords.push([lo, lat]);
+          coords.push([e, lat]);
           features.push({
             type: 'Feature',
             properties: {},
-            geometry: { type: 'LineString', coordinates: [[west - 1, lat], [east + 1, lat]] }
+            geometry: { type: 'LineString', coordinates: coords }
           });
         }
       }
@@ -539,8 +580,10 @@
       var spacing = utmGridSpacing(zoom);
 
       var bounds = map.getBounds();
-      var mapW = Math.max(bounds.getWest(), -180);
-      var mapE = Math.min(bounds.getEast(), 180);
+      var rawW = bounds.getWest(), rawE = bounds.getEast();
+      var crossesAM = rawW < -180 || rawE > 180 || rawW > rawE;
+      var mapW = crossesAM ? -180 : Math.max(rawW, -180);
+      var mapE = crossesAM ? 180 : Math.min(rawE, 180);
       var mapS = Math.max(bounds.getSouth(), -80);
       var mapN = Math.min(bounds.getNorth(), 84);
 
@@ -737,13 +780,39 @@
 
     }
 
+    var globeEnabled = false;
+
     function updateHash() {
       var c = map.getCenter();
       var z = map.getZoom();
-      history.replaceState(null, '',
-        '#lat=' + c.lat.toFixed(4) + '&lng=' + c.lng.toFixed(4) + '&z=' + z.toFixed(1)
-      );
+      var h = '#lat=' + c.lat.toFixed(4) + '&lng=' + c.lng.toFixed(4) + '&z=' + z.toFixed(1);
+      if (globeEnabled) h += '&globe=1';
+      history.replaceState(null, '', h);
     }
+
+    // ---- Globe toggle ----
+    var elGlobeToggle = document.getElementById('globe-toggle');
+
+    function setGlobeEnabled(on) {
+      globeEnabled = on;
+      elGlobeToggle.checked = on;
+      if (on) {
+        map.setProjection({ type: 'globe' });
+        map.setSky({ 'atmosphere-blend': 0.8 });
+        map.dragRotate.enable();
+        map.touchPitch.enable();
+      } else {
+        map.setProjection({ type: 'mercator' });
+        map.setSky({ 'atmosphere-blend': 0 });
+        map.setPitch(0);
+        map.setBearing(0);
+      }
+      updateHash();
+    }
+
+    elGlobeToggle.addEventListener('change', function () {
+      setGlobeEnabled(elGlobeToggle.checked);
+    });
 
     // ---- Map load ----
     map.on('load', function () {
@@ -811,6 +880,7 @@
         }
       });
 
+      if (initGlobe) setGlobeEnabled(true);
       updateInfo();
     });
 
