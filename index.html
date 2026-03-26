@@ -180,6 +180,16 @@
     .edu-degree { color: var(--text-secondary); font-size: 0.875rem; }
     .edu-dates { color: var(--text-muted); font-size: 0.8rem; }
 
+    /* PUBLICATIONS */
+    .publication-list { list-style: none; }
+    .publication-list li { padding: 0.75rem 0; }
+    .publication-list li + li { border-top: 1px solid var(--border); }
+    .pub-title { display: block; font-weight: 500; font-size: 0.95rem; }
+    .pub-title a { color: var(--text); }
+    .pub-title a:hover { color: var(--accent); }
+    .pub-authors { display: block; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .pub-venue { display: block; font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-top: 0.15rem; }
+
     /* PROJECTS */
     .project-grid {
       display: grid;
@@ -248,6 +258,7 @@
     <div class="nav-links">
       <a href="#about">About</a>
       <a href="#work">Work</a>
+      <a href="#publications">Publications</a>
       <a href="#education">Education</a>
       <a href="#projects">Tinkering</a>
     </div>
@@ -307,6 +318,24 @@
         <span class="exp-detail">
           Nearly 14 years across infrastructure, developer platforms, and user-facing products. Roles included Technical Lead for datacenter modeling, backend engineer on Google Contacts and People API, and early contributor to Chrome and the Caffeine web indexing system.
         </span>
+      </li>
+    </ul>
+  </section>
+
+  <section id="publications">
+    <h2>Publications</h2>
+    <ul class="publication-list">
+      <li>
+        <span class="pub-title"><a href="https://arxiv.org/abs/2506.20132" target="_blank" rel="noopener">High-Resolution LFMC Maps for Wildfire Risk From Multimodal Earth Observation Data</a></span>
+        <span class="pub-authors"><strong>Patrick Alan Johnson</strong>, Gabriel Tseng, Yawen Zhang, Heather Heward, Virginia Sjahli, Favyen Bastani, Joseph Redmon, Patrick Beukema. TerraBytes 2025.</span>
+      </li>
+      <li>
+        <span class="pub-title"><a href="https://arxiv.org/abs/2511.13655" target="_blank" rel="noopener">OlmoEarth: Stable Latent Image Modeling for Multimodal Earth Observation</a></span>
+        <span class="pub-authors">Henry Herzog, Favyen Bastani, Yawen Zhang, Gabriel Tseng, Joseph Redmon, ... <strong>Patrick Alan Johnson</strong>, ... Patrick Beukema. arXiv 2025.</span>
+      </li>
+      <li>
+        <span class="pub-title"><a href="https://arxiv.org/abs/2603.07039" target="_blank" rel="noopener">Self-Supervised Multi-Modal World Model with 4D Space-Time Embedding</a></span>
+        <span class="pub-authors">Lance Legel, Qingju Huang, Brandon Voelker, Daniel Neamati, <strong>Patrick Alan Johnson</strong>, Favyen Bastani, J. Rose, James R. Hennessy, Robert P. Guralnick, Douglas Soltis, Pamela S. Soltis, Shaowen Wang. arXiv 2026.</span>
       </li>
     </ul>
   </section>
