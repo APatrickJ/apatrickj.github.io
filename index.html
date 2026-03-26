@@ -51,21 +51,16 @@
       margin: 0 auto;
       padding: 0.75rem 1.5rem;
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
+      gap: 1.5rem;
     }
-    nav .nav-name {
-      font-weight: 600;
-      font-size: 1rem;
-      color: var(--text);
-    }
-    nav .nav-links { display: flex; gap: 1.5rem; }
-    nav .nav-links a {
+    nav .nav-inner a {
       font-size: 0.875rem;
       color: var(--text-secondary);
       font-weight: 400;
     }
-    nav .nav-links a:hover { color: var(--text); }
+    nav .nav-inner a:hover { color: var(--text); }
 
     /* LAYOUT */
     .container { max-width: 800px; margin: 0 auto; padding: 0 1.5rem; }
@@ -218,26 +213,26 @@
       line-height: 1.55;
     }
 
-    /* FOOTER */
-    footer {
-      padding: 2.5rem 0;
-      border-top: 1px solid var(--border);
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-    }
-
     /* RESPONSIVE */
     @media (max-width: 640px) {
+      nav .nav-inner {
+        gap: 1rem;
+        padding: 0.65rem 1rem;
+      }
+      nav .nav-inner a { font-size: 0.8rem; }
+      .container { padding: 0 1rem; }
       .hero {
         flex-direction: column;
         align-items: center;
         text-align: center;
         gap: 1.5rem;
-        padding-top: 3rem;
+        padding-top: 2.5rem;
       }
       .hero-photo { width: 120px; height: 120px; }
+      .hero-text h1 { font-size: 1.6rem; }
+      .hero-text .subtitle { font-size: 0.95rem; }
       .hero-text .links { justify-content: center; }
+      section { padding: 2rem 0; }
       .project-grid { grid-template-columns: 1fr; }
       .experience-list li {
         grid-template-columns: 1fr;
@@ -247,6 +242,8 @@
         grid-column: 1;
         text-align: left;
       }
+      .pub-title { font-size: 0.9rem; }
+      .pub-authors { font-size: 0.8rem; }
     }
   </style>
 </head>
@@ -254,14 +251,11 @@
 
 <nav>
   <div class="nav-inner">
-    <span class="nav-name">Patrick Johnson</span>
-    <div class="nav-links">
-      <a href="#about">About</a>
-      <a href="#work">Work</a>
-      <a href="#publications">Publications</a>
-      <a href="#education">Education</a>
-      <a href="#projects">Tinkering</a>
-    </div>
+    <a href="#about">About</a>
+    <a href="#work">Work</a>
+    <a href="#publications">Publications</a>
+    <a href="#education">Education</a>
+    <a href="#projects">Tinkering</a>
   </div>
 </nav>
 
@@ -381,10 +375,6 @@
   </section>
 
 </main>
-
-<footer>
-  <div class="container">&copy; 2025 Patrick Johnson</div>
-</footer>
 
 </body>
 </html>
