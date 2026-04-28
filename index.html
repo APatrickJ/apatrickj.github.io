@@ -207,6 +207,11 @@
       color: var(--text);
     }
     a.project-card:hover h3 { color: var(--accent); }
+    .project-ext {
+      font-weight: 400;
+      font-size: 0.85em;
+      color: var(--text-muted);
+    }
     .project-card p {
       font-size: 0.85rem;
       color: var(--text-muted);
@@ -216,10 +221,13 @@
     /* RESPONSIVE */
     @media (max-width: 640px) {
       nav .nav-inner {
-        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 0.5rem;
+        column-gap: 0.85rem;
         padding: 0.65rem 1rem;
       }
-      nav .nav-inner a { font-size: 0.8rem; }
+      nav .nav-inner a { font-size: 0.75rem; }
       .container { padding: 0 1rem; }
       .hero {
         flex-direction: column;
@@ -255,7 +263,7 @@
     <a href="#work">Work</a>
     <a href="#publications">Publications</a>
     <a href="#education">Education</a>
-    <a href="#projects">Tinkering</a>
+    <a href="#projects">Writing and projects</a>
   </div>
 </nav>
 
@@ -365,11 +373,15 @@
   </section>
 
   <section id="projects">
-    <h2>Tinkering</h2>
+    <h2>Writing and projects</h2>
     <div class="project-grid">
       <a class="project-card" href="utm-vs-web-mercator/index.html">
         <h3>UTM vs Web Mercator</h3>
         <p>Interactive map visualization comparing UTM and Web Mercator coordinate grids. Includes a guided tour showing how the grids diverge at different latitudes.</p>
+      </a>
+      <a class="project-card" href="https://allenai.org/blog/olmoearth-embeddings" target="_blank" rel="noopener noreferrer">
+        <h3>OlmoEarth embeddings <span class="project-ext" aria-hidden="true">↗</span></h3>
+        <p>Ai2 blog post on computing and exporting embedding vectors from OlmoEarth Studio for similarity search, few-shot segmentation, change detection, and more.</p>
       </a>
     </div>
   </section>
