@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Satellite Orbit Patterns</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #map { width: 100vw; height: 100vh; background: #0a0e1a; }
+
+    .panel {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 10px;
+      color: #e2e8f0;
+      z-index: 10;
+    }
+
+    /* ---- Header Panel ---- */
+    #header {
+      top: 12px;
+      left: 12px;
+      padding: 16px 20px;
+      max-width: 340px;
+    }
+
+    #header .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    #header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.01em;
+    }
+
+    #header .toggle-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    #header .toggle-btn:hover { color: #94a3b8; }
+
+    #header-body {
+      margin-top: 10px;
+      max-height: 700px;
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+      opacity: 1;
+    }
+
+    #header-body.collapsed {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    #header-body.tour-locked {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    #info.tour-locked .time-controls {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    #header p {
+      font-size: 12.5px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    /* ---- Orbit Selector ---- */
+    .orbit-list {
+      margin-top: 12px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      padding-top: 10px;
+    }
+
+    .orbit-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .orbit-item input[type="checkbox"] {
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    .orbit-swatch {
+      width: 18px;
+      height: 3px;
+      border-radius: 1px;
+      flex-shrink: 0;
+    }
+
+    .orbit-swatch.dashed {
+      background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+      height: 2px;
+    }
+
+    .orbit-swatch.dotted {
+      background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 5px);
+      height: 2px;
+    }
+
+    .orbit-item label {
+      font-size: 11.5px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+
+    .orbit-item label .orbit-detail {
+      color: #64748b;
+      font-size: 10px;
+    }
+
+    /* ---- Altitude Diagram ---- */
+    #altitude-diagram {
+      margin-top: 12px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      padding-top: 10px;
+      text-align: center;
+    }
+
+    #altitude-svg {
+      width: 100%;
+      max-width: 300px;
+      height: 130px;
+    }
+
+    /* ---- Coverage Controls ---- */
+    .coverage-controls {
+      margin-top: 10px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      padding-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .coverage-controls label {
+      font-size: 11px;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .coverage-controls input[type="checkbox"] {
+      accent-color: #60a5fa;
+      margin: 0;
+    }
+
+    .coverage-controls button {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .coverage-controls button:hover {
+      background: rgba(100, 116, 139, 0.35);
+    }
+
+    .tour-btn {
+      margin-top: 10px;
+      background: rgba(96, 165, 250, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .tour-btn:hover {
+      background: rgba(96, 165, 250, 0.25);
+      border-color: rgba(96, 165, 250, 0.5);
+    }
+
+    /* ---- Tour Popup ---- */
+    #tour-popup {
+      bottom: 100px;
+      left: 12px;
+      max-width: 380px;
+      padding: 20px 24px;
+    }
+
+    #tour-popup .tour-step {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    #tour-popup h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 8px;
+    }
+
+    #tour-popup p {
+      font-size: 13px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+    }
+
+    .tour-nav {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tour-nav-btn {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .tour-nav-btn:hover { background: rgba(100, 116, 139, 0.35); }
+
+    .tour-nav-primary {
+      background: rgba(96, 165, 250, 0.2);
+      color: #93c5fd;
+      border-color: rgba(96, 165, 250, 0.3);
+    }
+
+    .tour-nav-primary:hover { background: rgba(96, 165, 250, 0.35); }
+
+    /* ---- Info Bar ---- */
+    #info {
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .time-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .play-btn {
+      background: rgba(96, 165, 250, 0.2);
+      color: #93c5fd;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+
+    .play-btn:hover { background: rgba(96, 165, 250, 0.35); }
+
+    .speed-btn {
+      background: rgba(100, 116, 139, 0.15);
+      color: #64748b;
+      border: 1px solid rgba(100, 116, 139, 0.2);
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .speed-btn:hover { color: #94a3b8; }
+    .speed-btn.active { background: rgba(96, 165, 250, 0.2); color: #93c5fd; border-color: rgba(96, 165, 250, 0.3); }
+
+    .stats-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+
+    .stat-label {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+      white-space: nowrap;
+      color: #e2e8f0;
+    }
+
+    .attribution {
+      font-size: 9px;
+      color: #475569;
+      margin-left: auto;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .attribution a { color: #64748b; }
+
+    /* Color classes */
+    .c-leo { color: #38bdf8; }
+    .c-sso { color: #a78bfa; }
+    .c-geo { color: #fbbf24; }
+    .c-molniya { color: #f87171; }
+    .c-meo { color: #34d399; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 640px) {
+      #header {
+        max-width: none;
+        right: 12px;
+        padding: 12px 16px;
+      }
+
+      #header h1 { font-size: 15px; }
+
+      #info {
+        gap: 10px;
+        padding: 10px 12px;
+        flex-wrap: wrap;
+      }
+
+      .stats-row { gap: 10px; }
+      .stat-value { font-size: 12px; }
+      .attribution { display: none; }
+
+      #tour-popup {
+        max-width: none;
+        right: 12px;
+        bottom: 100px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Header -->
+  <div id="header" class="panel">
+    <div class="top-row">
+      <h1>Satellite Orbit Patterns</h1>
+      <button class="toggle-btn" id="toggle-header" title="Collapse">&minus;</button>
+    </div>
+    <div id="header-body">
+      <p>
+        Satellites orbit Earth in distinct patterns depending on their mission.
+        Toggle each orbit type to compare their ground tracks, coverage footprints,
+        and how they sweep across (or hover above) the planet.
+      </p>
+
+      <div class="orbit-list">
+        <div class="orbit-item">
+          <input type="checkbox" id="chk-leo" data-orbit="leo">
+          <div class="orbit-swatch" style="background:#38bdf8"></div>
+          <label for="chk-leo">LEO <span class="orbit-detail">420 km alt, 93 min period &middot; ISS, Hubble, Starlink</span></label>
+        </div>
+        <div class="orbit-item">
+          <input type="checkbox" id="chk-sso" data-orbit="sso">
+          <div class="orbit-swatch" style="background:#a78bfa"></div>
+          <label for="chk-sso">Sun-Sync <span class="orbit-detail">705 km alt, 99 min period &middot; Landsat, Sentinel-2</span></label>
+        </div>
+        <div class="orbit-item">
+          <input type="checkbox" id="chk-geo" data-orbit="geo">
+          <div class="orbit-swatch dotted" style="color:#fbbf24"></div>
+          <label for="chk-geo">GEO <span class="orbit-detail">35,786 km alt, 24 hr period &middot; GOES, Meteosat</span></label>
+        </div>
+        <div class="orbit-item">
+          <input type="checkbox" id="chk-molniya" data-orbit="molniya">
+          <div class="orbit-swatch" style="background:#f87171"></div>
+          <label for="chk-molniya">Molniya <span class="orbit-detail">500&ndash;39,873 km alt, 12 hr period &middot; Molniya-1T, Meridian</span></label>
+        </div>
+        <div class="orbit-item">
+          <input type="checkbox" id="chk-meo" data-orbit="meo">
+          <div class="orbit-swatch dashed" style="color:#34d399"></div>
+          <label for="chk-meo">MEO/GPS <span class="orbit-detail">20,200 km alt, 12 hr period &middot; GPS III, Galileo, GLONASS</span></label>
+        </div>
+      </div>
+
+      <div id="altitude-diagram">
+        <svg id="altitude-svg" viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <div class="coverage-controls">
+        <label><input type="checkbox" id="chk-footprint" checked> Footprint</label>
+        <label><input type="checkbox" id="chk-swath"> Swath</label>
+        <button id="btn-reset-swath">Reset swath</button>
+      </div>
+
+      <button id="tour-btn" class="tour-btn">Take a Tour</button>
+    </div>
+  </div>
+
+  <!-- Tour Popup -->
+  <div id="tour-popup" class="panel" style="display:none">
+    <div class="tour-step" id="tour-step-label"></div>
+    <h2 id="tour-title"></h2>
+    <p id="tour-body"></p>
+    <div class="tour-nav">
+      <button id="tour-prev" class="tour-nav-btn">Back</button>
+      <button id="tour-next" class="tour-nav-btn tour-nav-primary">Next</button>
+      <button id="tour-end" class="tour-nav-btn">End Tour</button>
+    </div>
+  </div>
+
+  <!-- Info Bar -->
+  <div id="info" class="panel">
+    <div class="time-controls">
+      <button class="play-btn" id="btn-play" title="Play/Pause">&#9654;</button>
+      <button class="speed-btn active" data-speed="1">1x</button>
+      <button class="speed-btn" data-speed="10">10x</button>
+      <button class="speed-btn" data-speed="100">100x</button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-label">Sim Time</span>
+        <span class="stat-value" id="v-time">T+0:00:00</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Active Orbit</span>
+        <span class="stat-value" id="v-orbit">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Altitude</span>
+        <span class="stat-value" id="v-alt">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Period</span>
+        <span class="stat-value" id="v-period">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Inclination</span>
+        <span class="stat-value" id="v-inc">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Velocity</span>
+        <span class="stat-value" id="v-vel">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Footprint Diameter</span>
+        <span class="stat-value" id="v-footprint">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Examples</span>
+        <span class="stat-value" id="v-examples" style="font-size:11px;font-family:inherit;font-weight:600">--</span>
+      </div>
+    </div>
+
+    <div class="attribution">
+      &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+      &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>
+    </div>
+  </div>
+
+  <script>
+    // ========== Constants ==========
+    var R_EARTH = 6371;        // km
+    var MU = 398600.4418;      // km^3/s^2, standard gravitational parameter
+    var J2 = 1.08263e-3;       // Earth's J2 oblateness coefficient
+    var OMEGA_EARTH = 7.2921159e-5; // rad/s, Earth's rotation rate
+    var DEG = Math.PI / 180;
+    var TWO_PI = 2 * Math.PI;
+
+    // ========== Orbit Definitions ==========
+    var ORBITS = {
+      leo: {
+        name: 'LEO',
+        fullName: 'Low Earth Orbit',
+        color: '#38bdf8',
+        a: R_EARTH + 420,
+        e: 0.0007,
+        i: 51.6 * DEG,       // ISS inclination
+        raan0: 0,
+        omega: 0,
+        M0: 0,
+        dasharray: null,
+        revolutions: 16,      // ~24 hours
+        examples: 'ISS, Hubble, Starlink'
+      },
+      sso: {
+        name: 'SSO',
+        fullName: 'Sun-Synchronous',
+        color: '#a78bfa',
+        a: R_EARTH + 705,
+        e: 0.0001,
+        i: 98.2 * DEG,
+        raan0: 90 * DEG,
+        omega: 0,
+        M0: 0,
+        dasharray: null,
+        revolutions: 14,
+        examples: 'Landsat 8/9, Sentinel-2, Terra/Aqua'
+      },
+      geo: {
+        name: 'GEO',
+        fullName: 'Geostationary',
+        color: '#fbbf24',
+        a: 42164,             // R_EARTH + 35786
+        e: 0.0001,
+        i: 0.05 * DEG,
+        raan0: 0,
+        omega: 0,
+        M0: 0,
+        dasharray: [2, 3],
+        revolutions: 1,
+        examples: 'GOES-16/18, Meteosat, Himawari-9'
+      },
+      molniya: {
+        name: 'Molniya',
+        fullName: 'Molniya',
+        color: '#f87171',
+        a: R_EARTH + 20187,   // semi-major axis for 12-hr period
+        e: 0.74,
+        i: 63.4 * DEG,       // critical inclination
+        raan0: 0,
+        omega: 270 * DEG,     // argument of perigee: apogee over Northern Hemisphere
+        M0: 0,
+        dasharray: null,
+        revolutions: 2,
+        examples: 'Molniya-1T, Meridian, Tundra'
+      },
+      meo: {
+        name: 'MEO',
+        fullName: 'MEO / GPS',
+        color: '#34d399',
+        a: R_EARTH + 20200,
+        e: 0.005,
+        i: 55 * DEG,
+        raan0: 30 * DEG,
+        omega: 0,
+        M0: 0,
+        dasharray: [6, 3],
+        revolutions: 2,
+        examples: 'GPS IIF/III, Galileo, GLONASS'
+      }
+    };
+
+    // Compute derived quantities for each orbit
+    var ORBIT_KEYS = Object.keys(ORBITS);
+    ORBIT_KEYS.forEach(function (key) {
+      var o = ORBITS[key];
+      o.key = key;
+      o.period = TWO_PI * Math.sqrt(o.a * o.a * o.a / MU); // seconds
+      o.n = TWO_PI / o.period;                               // mean motion, rad/s
+      var rp = o.a * (1 - o.e);
+      var ra = o.a * (1 + o.e);
+      o.altPerigee = rp - R_EARTH;
+      o.altApogee = ra - R_EARTH;
+      o.velocity = Math.sqrt(MU / o.a);                      // vis-viva at circular approx
+      // J2 nodal precession rate
+      o.raanDot = -1.5 * o.n * J2 * (R_EARTH / (o.a * (1 - o.e * o.e))) *
+                  (R_EARTH / (o.a * (1 - o.e * o.e))) * Math.cos(o.i);
+      // Coverage: half-angle of visibility cone from Earth center
+      o.rho = Math.acos(R_EARTH / o.a); // for mean altitude
+      // Footprint diameter on ground
+      o.footprintDiamKm = 2 * o.rho * R_EARTH;
+    });
+
+    // ========== Kepler's Equation Solver ==========
+    function solveKepler(M, e) {
+      // Newton-Raphson for E given M and e
+      var E = M;
+      for (var iter = 0; iter < 15; iter++) {
+        var dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+        E -= dE;
+        if (Math.abs(dE) < 1e-12) break;
+      }
+      return E;
+    }
+
+    // ========== ECI to Lat/Lng ==========
+    // Given Keplerian elements and time, compute sub-satellite lat/lng
+    function orbitPosition(orb, tSeconds) {
+      var M = orb.M0 + orb.n * tSeconds;
+      M = M % TWO_PI;
+      if (M < 0) M += TWO_PI;
+
+      var E = solveKepler(M, orb.e);
+      var cosE = Math.cos(E), sinE = Math.sin(E);
+      var sqrtFac = Math.sqrt(1 - orb.e * orb.e);
+      var nu = Math.atan2(sqrtFac * sinE, cosE - orb.e);
+
+      var r = orb.a * (1 - orb.e * cosE);
+
+      // Position in orbital plane
+      var u = orb.omega + nu; // argument of latitude
+      var cosU = Math.cos(u), sinU = Math.sin(u);
+
+      // RAAN with J2 precession
+      var raan = orb.raan0 + orb.raanDot * tSeconds;
+      var cosO = Math.cos(raan), sinO = Math.sin(raan);
+      var cosI = Math.cos(orb.i), sinI = Math.sin(orb.i);
+
+      // ECI coordinates
+      var xECI = r * (cosO * cosU - sinO * sinU * cosI);
+      var yECI = r * (sinO * cosU + cosO * sinU * cosI);
+      var zECI = r * sinU * sinI;
+
+      // GMST (Greenwich Mean Sidereal Time) approximation
+      var gmst = OMEGA_EARTH * tSeconds;
+
+      // Rotate to ECEF
+      var cosG = Math.cos(gmst), sinG = Math.sin(gmst);
+      var xECEF = xECI * cosG + yECI * sinG;
+      var yECEF = -xECI * sinG + yECI * cosG;
+      var zECEF = zECI;
+
+      // Lat/Lng
+      var lat = Math.atan2(zECEF, Math.sqrt(xECEF * xECEF + yECEF * yECEF));
+      var lng = Math.atan2(yECEF, xECEF);
+
+      return {
+        lat: lat / DEG,
+        lng: lng / DEG,
+        alt: r - R_EARTH,
+        r: r
+      };
+    }
+
+    // ========== Ground Track Generation ==========
+    function computeGroundTrack(orb, numRevolutions) {
+      var totalTime = orb.period * numRevolutions;
+      var numPoints = Math.max(500, Math.round(numRevolutions * 360));
+      var dt = totalTime / numPoints;
+      var segments = [];
+      var currentSeg = [];
+      var prevLng = null;
+
+      for (var i = 0; i <= numPoints; i++) {
+        var t = i * dt;
+        var pos = orbitPosition(orb, t);
+        var lng = pos.lng;
+        var lat = pos.lat;
+
+        // Break segment at antimeridian crossing
+        if (prevLng !== null && Math.abs(lng - prevLng) > 180) {
+          if (currentSeg.length > 1) segments.push(currentSeg);
+          currentSeg = [];
+        }
+
+        currentSeg.push([lng, lat]);
+        prevLng = lng;
+      }
+      if (currentSeg.length > 1) segments.push(currentSeg);
+      return segments;
+    }
+
+    function groundTrackGeoJSON(orb) {
+      var segments = computeGroundTrack(orb, orb.revolutions);
+      var features = segments.map(function (coords) {
+        return {
+          type: 'Feature',
+          properties: { orbit: orb.key },
+          geometry: { type: 'LineString', coordinates: coords }
+        };
+      });
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ========== Coverage Footprint ==========
+    function normLng(lo) {
+      lo = lo % 360;
+      if (lo > 180) lo -= 360;
+      if (lo < -180) lo += 360;
+      return lo;
+    }
+
+    function computeFootprintRing(lat, lng, rho, nPoints) {
+      var latR = lat * DEG;
+      var lngR = lng * DEG;
+      var sinLat = Math.sin(latR), cosLat = Math.cos(latR);
+      var sinRho = Math.sin(rho), cosRho = Math.cos(rho);
+      var ring = [];
+      for (var i = 0; i < nPoints; i++) {
+        var az = (i / nPoints) * TWO_PI;
+        var pLat = Math.asin(sinLat * cosRho + cosLat * sinRho * Math.cos(az));
+        var pLng = lngR + Math.atan2(sinRho * Math.sin(az),
+                   cosLat * cosRho - sinLat * sinRho * Math.cos(az));
+        ring.push([normLng(pLng / DEG), pLat / DEG]);
+      }
+      ring.push([ring[0][0], ring[0][1]]);
+      return ring;
+    }
+
+    function buildFootprintPolygon(lat, lng, rho, nPoints) {
+      nPoints = nPoints || 64;
+      var rhoDeg = rho / DEG;
+
+      var containsNorth = (lat + rhoDeg) >= 90;
+      var containsSouth = (lat - rhoDeg) <= -90;
+
+      if (containsNorth || containsSouth) {
+        return buildPolarFootprint(lat, lng, rho, nPoints, containsNorth, containsSouth);
+      }
+
+      var ring = computeFootprintRing(lat, lng, rho, nPoints);
+
+      // Detect antimeridian crossing by checking consecutive jumps
+      var crossesAM = false;
+      for (var i = 1; i < ring.length; i++) {
+        if (Math.abs(ring[i][0] - ring[i - 1][0]) > 180) {
+          crossesAM = true;
+          break;
+        }
+      }
+
+      if (!crossesAM) {
+        return [ring];
+      }
+
+      return splitAtAntimeridian(ring);
+    }
+
+    function buildPolarFootprint(lat, lng, rho, nPoints, containsNorth, containsSouth) {
+      var ring = computeFootprintRing(lat, lng, rho, nPoints);
+      ring.pop(); // remove closing duplicate
+      var poleLat = containsNorth ? 90 : -90;
+
+      // Sort boundary by longitude for the pole-fill approach
+      ring.sort(function (a, b) { return a[0] - b[0]; });
+
+      var poly = ring.slice();
+      // Close along the pole edge
+      poly.push([180, ring[ring.length - 1][1]]);
+      poly.push([180, poleLat]);
+      poly.push([-180, poleLat]);
+      poly.push([-180, ring[0][1]]);
+      poly.push(ring[0]);
+
+      return [poly];
+    }
+
+    function splitAtAntimeridian(ring) {
+      var segments = [];
+      var seg = [ring[0]];
+      for (var i = 1; i < ring.length; i++) {
+        var dLng = ring[i][0] - ring[i - 1][0];
+        if (Math.abs(dLng) > 180) {
+          var sign = dLng > 0 ? -1 : 1;
+          var edgeLng = sign * 180;
+          // Unwrap to get proper interpolation fraction
+          var prevLng = ring[i - 1][0];
+          var nextLng = ring[i][0] + sign * 360;
+          var frac = (edgeLng - prevLng) / (nextLng - prevLng);
+          var crossLat = ring[i - 1][1] + frac * (ring[i][1] - ring[i - 1][1]);
+          seg.push([edgeLng, crossLat]);
+          seg.push(seg[0]);
+          if (seg.length > 3) segments.push(seg);
+          seg = [[-edgeLng, crossLat], ring[i]];
+        } else {
+          seg.push(ring[i]);
+        }
+      }
+      if (seg.length > 3) {
+        seg.push(seg[0]);
+        segments.push(seg);
+      }
+      return segments;
+    }
+
+    function footprintGeoJSON(positions) {
+      var features = [];
+      for (var key in positions) {
+        if (!positions.hasOwnProperty(key)) continue;
+        var pos = positions[key];
+        var orb = ORBITS[key];
+        var rho = Math.acos(R_EARTH / (R_EARTH + pos.alt));
+        var polys = buildFootprintPolygon(pos.lat, pos.lng, rho, 64);
+
+        for (var p = 0; p < polys.length; p++) {
+          features.push({
+            type: 'Feature',
+            properties: { orbit: key, color: orb.color },
+            geometry: { type: 'Polygon', coordinates: [polys[p]] }
+          });
+        }
+      }
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ========== Swath Accumulation ==========
+    var SWATH_RES = 2; // degrees per cell
+    var SWATH_NLAT = Math.ceil(180 / SWATH_RES);
+    var SWATH_NLON = Math.ceil(360 / SWATH_RES);
+    var swathGrid = new Uint8Array(SWATH_NLAT * SWATH_NLON);
+    var swathDirty = false;
+
+    function resetSwath() {
+      swathGrid.fill(0);
+      swathDirty = true;
+    }
+
+    function markSwath(lat, lng, rho) {
+      // Mark cells covered by the footprint centered at (lat, lng) with angular radius rho
+      var rhoDeg = rho / DEG;
+      var latMin = Math.max(-90, lat - rhoDeg);
+      var latMax = Math.min(90, lat + rhoDeg);
+      var j0 = Math.floor((latMin + 90) / SWATH_RES);
+      var j1 = Math.ceil((latMax + 90) / SWATH_RES);
+      j0 = Math.max(0, Math.min(SWATH_NLAT - 1, j0));
+      j1 = Math.max(0, Math.min(SWATH_NLAT - 1, j1));
+
+      var sinLat = Math.sin(lat * DEG), cosLat = Math.cos(lat * DEG);
+      var cosRho = Math.cos(rho);
+
+      for (var j = j0; j <= j1; j++) {
+        var cellLat = (j * SWATH_RES - 90 + SWATH_RES / 2) * DEG;
+        var sinCL = Math.sin(cellLat), cosCL = Math.cos(cellLat);
+        var dLatTerm = sinLat * sinCL;
+        var cosLatProd = cosLat * cosCL;
+        // How wide in longitude at this latitude?
+        if (cosLatProd > 0) {
+          var cosMaxDLng = (cosRho - dLatTerm) / cosLatProd;
+          var maxDLng;
+          if (cosMaxDLng <= -1) {
+            maxDLng = 180;
+          } else if (cosMaxDLng >= 1) {
+            continue;
+          } else {
+            maxDLng = Math.acos(cosMaxDLng) / DEG;
+          }
+          var lngMin = lng - maxDLng;
+          var lngMax = lng + maxDLng;
+          var i0 = Math.floor((lngMin + 180) / SWATH_RES);
+          var i1 = Math.ceil((lngMax + 180) / SWATH_RES);
+          for (var ii = i0; ii <= i1; ii++) {
+            var idx = j * SWATH_NLON + ((ii % SWATH_NLON) + SWATH_NLON) % SWATH_NLON;
+            if (idx >= 0 && idx < swathGrid.length && swathGrid[idx] < 255) {
+              swathGrid[idx]++;
+              swathDirty = true;
+            }
+          }
+        }
+      }
+    }
+
+    function swathGeoJSON() {
+      var features = [];
+      var maxVal = 0;
+      for (var k = 0; k < swathGrid.length; k++) {
+        if (swathGrid[k] > maxVal) maxVal = swathGrid[k];
+      }
+      if (maxVal === 0) return { type: 'FeatureCollection', features: features };
+
+      for (var j = 0; j < SWATH_NLAT; j++) {
+        for (var i = 0; i < SWATH_NLON; i++) {
+          var val = swathGrid[j * SWATH_NLON + i];
+          if (val === 0) continue;
+          var lat0 = j * SWATH_RES - 90;
+          var lng0 = i * SWATH_RES - 180;
+          features.push({
+            type: 'Feature',
+            properties: { count: val, opacity: Math.min(0.6, 0.1 + 0.5 * val / maxVal) },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[
+                [lng0, lat0],
+                [lng0 + SWATH_RES, lat0],
+                [lng0 + SWATH_RES, lat0 + SWATH_RES],
+                [lng0, lat0 + SWATH_RES],
+                [lng0, lat0]
+              ]]
+            }
+          });
+        }
+      }
+      return { type: 'FeatureCollection', features: features };
+    }
+
+    // ========== Altitude Diagram (inline SVG) ==========
+    function drawAltitudeDiagram(activeOrbits) {
+      var svg = document.getElementById('altitude-svg');
+      var w = 300, h = 130;
+      var cx = 150, cy = 110;
+      var earthR = 22;
+
+      // Log scale for orbit radii to fit everything
+      var scaleR = function (altKm) {
+        return earthR + Math.log(1 + altKm / 200) * 12;
+      };
+
+      var html = '';
+      // Stars background
+      html += '<rect width="' + w + '" height="' + h + '" fill="transparent"/>';
+      var starPositions = [
+        [20, 15], [50, 8], [90, 25], [130, 10], [170, 20], [210, 5],
+        [250, 18], [280, 12], [35, 40], [75, 50], [115, 35], [190, 45],
+        [230, 38], [265, 42], [145, 55]
+      ];
+      starPositions.forEach(function (p) {
+        html += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="0.7" fill="rgba(148,163,184,0.4)"/>';
+      });
+
+      // Earth
+      html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + earthR + '" fill="#1e3a5f" stroke="#3b82f6" stroke-width="0.8"/>';
+      html += '<text x="' + cx + '" y="' + (cy + 3) + '" text-anchor="middle" font-size="7" fill="#94a3b8">Earth</text>';
+
+      // Orbit arcs
+      var orbitDrawOrder = ['leo', 'sso', 'meo', 'molniya', 'geo'];
+      orbitDrawOrder.forEach(function (key) {
+        var orb = ORBITS[key];
+        var isActive = activeOrbits.indexOf(key) >= 0;
+        var meanAlt = (orb.altPerigee + orb.altApogee) / 2;
+        var r = scaleR(meanAlt);
+        var opacity = isActive ? 0.9 : 0.2;
+        var sw = isActive ? 1.5 : 0.7;
+
+        if (key === 'molniya') {
+          // Elliptical: show perigee and apogee radii
+          var rp = scaleR(orb.altPerigee);
+          var ra = scaleR(orb.altApogee);
+          var ry = (rp + ra) / 2;
+          var rx = (rp + ra) / 2 * 0.6;
+          html += '<ellipse cx="' + cx + '" cy="' + (cy - (ra - rp) / 4) +
+                  '" rx="' + rx + '" ry="' + ry +
+                  '" fill="none" stroke="' + orb.color +
+                  '" stroke-width="' + sw +
+                  '" opacity="' + opacity +
+                  '" stroke-dasharray="' + (isActive ? 'none' : '3,2') + '"/>';
+        } else {
+          html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r +
+                  '" fill="none" stroke="' + orb.color +
+                  '" stroke-width="' + sw +
+                  '" opacity="' + opacity +
+                  '" stroke-dasharray="' + (isActive ? 'none' : '3,2') + '"/>';
+        }
+
+        // Labels
+        if (isActive) {
+          var labelR = (key === 'molniya') ? scaleR((orb.altPerigee + orb.altApogee) / 2) : r;
+          var angle = { leo: -40, sso: -20, geo: 10, molniya: 30, meo: -5 }[key] || 0;
+          var lx = cx + (labelR + 8) * Math.cos(angle * DEG - Math.PI / 2);
+          var ly = cy + (labelR + 8) * Math.sin(angle * DEG - Math.PI / 2);
+          html += '<text x="' + lx + '" y="' + ly +
+                  '" text-anchor="middle" font-size="7" font-weight="600" fill="' + orb.color + '">' +
+                  orb.name + '</text>';
+        }
+      });
+
+      svg.innerHTML = html;
+    }
+
+    // ========== State ==========
+    var activeOrbits = {};   // key -> true
+    var simTime = 0;         // seconds of simulation elapsed
+    var simRunning = false;
+    var simSpeed = 1;
+    var lastFrameTime = null;
+    var showFootprint = true;
+    var showSwath = false;
+    var selectedOrbit = null; // for info panel
+    var groundTrackCache = {};
+
+    var EMPTY_FC = { type: 'FeatureCollection', features: [] };
+
+    // ========== Map ==========
+    var map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          carto: {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            maxzoom: 19
+          }
+        },
+        layers: [{ id: 'basemap', type: 'raster', source: 'carto' }],
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
+      },
+      center: [0, 20],
+      zoom: 1.8,
+      attributionControl: false,
+      renderWorldCopies: false
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+    // ========== Header toggle ==========
+    var headerBody = document.getElementById('header-body');
+    var toggleBtn = document.getElementById('toggle-header');
+    toggleBtn.addEventListener('click', function () {
+      var collapsed = headerBody.classList.toggle('collapsed');
+      toggleBtn.innerHTML = collapsed ? '+' : '&minus;';
+      toggleBtn.title = collapsed ? 'Expand' : 'Collapse';
+    });
+
+    // ========== Orbit Toggles ==========
+    function getActiveKeys() {
+      return Object.keys(activeOrbits).filter(function (k) { return activeOrbits[k]; });
+    }
+
+    function onOrbitToggle(key, enabled) {
+      activeOrbits[key] = enabled;
+      var orb = ORBITS[key];
+
+      var trackSrc = map.getSource('track-' + key);
+      if (trackSrc) {
+        if (enabled) {
+          if (!groundTrackCache[key]) {
+            groundTrackCache[key] = groundTrackGeoJSON(orb);
+          }
+          trackSrc.setData(groundTrackCache[key]);
+        } else {
+          trackSrc.setData(EMPTY_FC);
+        }
+      }
+
+      if (!enabled) {
+        resetSwath();
+        renderSwathNow();
+      }
+
+      // Auto-select for info panel
+      var keys = getActiveKeys();
+      if (enabled) {
+        selectedOrbit = key;
+        if (!tourActive) {
+          var pos = orbitPosition(orb, simTime);
+          map.flyTo({ center: [pos.lng, pos.lat], duration: 800 });
+        }
+      } else if (selectedOrbit === key) {
+        selectedOrbit = keys.length > 0 ? keys[keys.length - 1] : null;
+      }
+
+      updateInfoPanel();
+      drawAltitudeDiagram(keys);
+      updateMarkers();
+    }
+
+    ORBIT_KEYS.forEach(function (key) {
+      var chk = document.getElementById('chk-' + key);
+      if (chk) {
+        chk.addEventListener('change', function () {
+          onOrbitToggle(key, chk.checked);
+        });
+      }
+    });
+
+    // ========== Time Controls ==========
+    var elPlayBtn = document.getElementById('btn-play');
+    var speedBtns = document.querySelectorAll('.speed-btn');
+
+    elPlayBtn.addEventListener('click', function () {
+      simRunning = !simRunning;
+      elPlayBtn.innerHTML = simRunning ? '&#9646;&#9646;' : '&#9654;';
+      if (simRunning) {
+        lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      }
+    });
+
+    speedBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        simSpeed = parseInt(btn.getAttribute('data-speed'));
+        speedBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      });
+    });
+
+    // ========== Coverage Controls ==========
+    document.getElementById('chk-footprint').addEventListener('change', function () {
+      showFootprint = this.checked;
+      if (showFootprint) {
+        updateMarkers();
+      } else {
+        var src = map.getSource('footprints');
+        if (src) src.setData(EMPTY_FC);
+      }
+    });
+
+    document.getElementById('chk-swath').addEventListener('change', function () {
+      showSwath = this.checked;
+      if (showSwath) {
+        updateMarkers();
+        renderSwathNow();
+      } else {
+        var src = map.getSource('swath');
+        if (src) src.setData(EMPTY_FC);
+      }
+    });
+
+    document.getElementById('btn-reset-swath').addEventListener('click', function () {
+      resetSwath();
+      var src = map.getSource('swath');
+      if (src) src.setData(EMPTY_FC);
+    });
+
+    function renderSwathNow() {
+      var src = map.getSource('swath');
+      if (src && showSwath) {
+        src.setData(swathGeoJSON());
+        swathDirty = false;
+      }
+    }
+
+    // ========== Info Panel ==========
+    var elTime = document.getElementById('v-time');
+    var elOrbit = document.getElementById('v-orbit');
+    var elAlt = document.getElementById('v-alt');
+    var elPeriod = document.getElementById('v-period');
+    var elInc = document.getElementById('v-inc');
+    var elVel = document.getElementById('v-vel');
+    var elFP = document.getElementById('v-footprint');
+    var elExamples = document.getElementById('v-examples');
+
+    function formatTime(sec) {
+      var h = Math.floor(sec / 3600);
+      var m = Math.floor((sec % 3600) / 60);
+      var s = Math.floor(sec % 60);
+      return 'T+' + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function formatPeriod(sec) {
+      if (sec >= 86400) return (sec / 3600).toFixed(1) + ' hr';
+      if (sec >= 3600) return (sec / 3600).toFixed(1) + ' hr';
+      return (sec / 60).toFixed(0) + ' min';
+    }
+
+    function updateInfoPanel() {
+      elTime.textContent = formatTime(simTime);
+
+      if (!selectedOrbit || !activeOrbits[selectedOrbit]) {
+        elOrbit.textContent = '--';
+        elAlt.textContent = '--';
+        elPeriod.textContent = '--';
+        elInc.textContent = '--';
+        elVel.textContent = '--';
+        elFP.textContent = '--';
+        elExamples.textContent = '--';
+        return;
+      }
+
+      var orb = ORBITS[selectedOrbit];
+      var pos = orbitPosition(orb, simTime);
+
+      elOrbit.textContent = orb.fullName;
+      elOrbit.style.color = orb.color;
+
+      if (orb.e > 0.01) {
+        elAlt.textContent = Math.round(pos.alt) + ' km';
+      } else {
+        elAlt.textContent = Math.round(orb.altPerigee) + ' km';
+      }
+
+      elPeriod.textContent = formatPeriod(orb.period);
+      elInc.textContent = (orb.i / DEG).toFixed(1) + '\u00B0';
+
+      var v = Math.sqrt(MU * (2 / (R_EARTH + pos.alt) - 1 / orb.a));
+      elVel.textContent = v.toFixed(1) + ' km/s';
+
+      var instRho = Math.acos(R_EARTH / (R_EARTH + pos.alt));
+      elFP.textContent = Math.round(2 * instRho * R_EARTH) + ' km';
+
+      elExamples.textContent = orb.examples || '--';
+      elExamples.style.color = orb.color;
+    }
+
+    // ========== Satellite Markers ==========
+    function updateMarkers() {
+      var markerFeatures = [];
+      var positions = {};
+
+      var keys = getActiveKeys();
+      keys.forEach(function (key) {
+        var orb = ORBITS[key];
+        var pos = orbitPosition(orb, simTime);
+        positions[key] = pos;
+        markerFeatures.push({
+          type: 'Feature',
+          properties: { orbit: key, color: orb.color },
+          geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] }
+        });
+      });
+
+      var markerSrc = map.getSource('sat-markers');
+      if (markerSrc) {
+        markerSrc.setData({ type: 'FeatureCollection', features: markerFeatures });
+      }
+
+      // Footprints - always update when visible, regardless of animation state
+      if (showFootprint && keys.length > 0) {
+        var fpSrc = map.getSource('footprints');
+        if (fpSrc) fpSrc.setData(footprintGeoJSON(positions));
+      } else {
+        var fpSrc = map.getSource('footprints');
+        if (fpSrc) fpSrc.setData(EMPTY_FC);
+      }
+
+      // Swath accumulation - mark cells when running
+      if (showSwath && simRunning) {
+        keys.forEach(function (key) {
+          var pos = positions[key];
+          var rho = Math.acos(R_EARTH / (R_EARTH + pos.alt));
+          markSwath(pos.lat, pos.lng, rho);
+        });
+      }
+    }
+
+    // ========== Swath render throttle ==========
+    var lastSwathRender = 0;
+    var SWATH_RENDER_INTERVAL = 2000; // ms
+
+    // ========== Animation Loop ==========
+    var lastTrackCenter = null;
+
+    function animate(ts) {
+      if (!simRunning) return;
+
+      var dtReal = 0;
+      if (lastFrameTime !== null) {
+        dtReal = (ts - lastFrameTime) / 1000;
+        dtReal = Math.min(dtReal, 0.1);
+        simTime += dtReal * simSpeed;
+      }
+      lastFrameTime = ts;
+
+      updateMarkers();
+      updateInfoPanel();
+
+      // Tour: track satellite by smoothly panning the globe
+      if (tourActive && tourTrackOrbit && activeOrbits[tourTrackOrbit]) {
+        var orb = ORBITS[tourTrackOrbit];
+        var pos = orbitPosition(orb, simTime);
+        var targetLng = pos.lng;
+        var targetLat = pos.lat * 0.5; // dampen latitude so globe doesn't flip wildly
+
+        if (lastTrackCenter) {
+          // Smooth interpolation toward satellite position
+          var alpha = Math.min(1, dtReal * 1.5);
+          var dLng = targetLng - lastTrackCenter[0];
+          // Handle antimeridian wrapping
+          if (dLng > 180) dLng -= 360;
+          if (dLng < -180) dLng += 360;
+          var newLng = lastTrackCenter[0] + dLng * alpha;
+          var newLat = lastTrackCenter[1] + (targetLat - lastTrackCenter[1]) * alpha;
+          lastTrackCenter = [newLng, newLat];
+        } else {
+          lastTrackCenter = [targetLng, targetLat];
+        }
+        map.setCenter(lastTrackCenter);
+      }
+
+      // Tour: slow equatorial globe spin to reveal coverage gaps
+      if (tourActive && tourSpin && dtReal > 0) {
+        var c = map.getCenter();
+        var newLng = c.lng + tourSpinRate * dtReal * simSpeed;
+        map.setCenter([newLng, c.lat]);
+      }
+
+      // Throttle swath rendering
+      if (showSwath && swathDirty && (ts - lastSwathRender > SWATH_RENDER_INTERVAL)) {
+        var src = map.getSource('swath');
+        if (src) src.setData(swathGeoJSON());
+        swathDirty = false;
+        lastSwathRender = ts;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    // ========== Tour ==========
+    var TOUR_STOPS = [
+      {
+        center: [20, 20], zoom: 1.8, pitch: 0, bearing: 0,
+        title: 'Satellite Orbit Patterns',
+        body: 'Satellites orbit Earth in distinct patterns depending on their mission. Each orbit ' +
+              'type produces a unique <em>ground track</em> \u2014 the path the satellite traces on Earth\'s ' +
+              'surface as the planet rotates beneath it. Let\'s explore the five most common types.',
+        orbits: [],
+        play: false
+      },
+      {
+        center: [0, 30], zoom: 2.2, pitch: 15, bearing: 0,
+        title: 'Low Earth Orbit (LEO)',
+        body: 'At just 400 km altitude, <span class="c-leo">LEO satellites</span> circle Earth in about ' +
+              '90 minutes. The classic sinusoidal ground track shifts westward with each pass as Earth ' +
+              'rotates beneath it. The <strong>International Space Station</strong> orbits here, inclined ' +
+              '51.6\u00B0 to cover most populated areas. The <strong>Hubble Space Telescope</strong> and ' +
+              '<strong>Starlink</strong> constellation also operate in LEO.',
+        orbits: ['leo'],
+        play: true,
+        track: 'leo'
+      },
+      {
+        center: [0, 45], zoom: 2.2, pitch: 15, bearing: 0,
+        title: 'Sun-Synchronous Orbit (SSO)',
+        body: '<span class="c-sso">Sun-synchronous satellites</span> at ~700 km use a slightly retrograde ' +
+              'inclination (98\u00B0) so that Earth\'s equatorial bulge (J2 effect) precesses the orbital ' +
+              'plane at exactly the rate Earth orbits the Sun. Every pass crosses the equator at the same ' +
+              'local solar time, giving consistent lighting. <strong>Landsat 8/9</strong>, ' +
+              '<strong>Sentinel-2</strong>, and NASA\'s <strong>Terra</strong> and <strong>Aqua</strong> ' +
+              'all fly in sun-synchronous orbits.',
+        orbits: ['sso'],
+        play: true,
+        track: 'sso'
+      },
+      {
+        center: [0, 20], zoom: 1.8, pitch: 0, bearing: 0,
+        title: 'SSO Coverage After 24 Hours',
+        body: 'With swath accumulation enabled, watch how a <span class="c-sso">sun-synchronous ' +
+              'satellite</span> covers most of Earth\'s surface in about 14 orbits (~24 hours). ' +
+              'Notice the gaps near the equator where successive passes don\'t quite overlap. ' +
+              'A wider imaging swath or a constellation of satellites fills these gaps.',
+        orbits: ['sso'],
+        play: true,
+        swath: true,
+        speed: 100,
+        track: 'sso'
+      },
+      {
+        center: [-10, 0], zoom: 2.0, pitch: 15, bearing: 0,
+        title: 'Geostationary Orbit (GEO)',
+        body: '<span class="c-geo">Geostationary satellites</span> orbit at 35,786 km, where the orbital ' +
+              'period matches Earth\'s rotation: exactly 24 hours. The satellite appears to hover over a ' +
+              'fixed point on the equator. <strong>GOES-16/18</strong> watch the Americas, ' +
+              '<strong>Meteosat</strong> covers Europe and Africa, and <strong>Himawari-9</strong> monitors ' +
+              'the western Pacific. One satellite sees nearly a third of the planet, but polar regions ' +
+              'are invisible. Watch the globe slowly rotate to reveal the uncovered poles.',
+        orbits: ['geo'],
+        play: true,
+        spin: -0.15
+      },
+      {
+        center: [0, 20], zoom: 1.8, pitch: 0, bearing: 0,
+        title: 'Molniya Orbit',
+        body: '<span class="c-molniya">Molniya orbits</span> are highly elliptical (500 km perigee, ' +
+              '~40,000 km apogee) with a 12-hour period. The critical inclination of 63.4\u00B0 prevents ' +
+              'the argument of perigee from drifting. The satellite lingers near apogee over high northern ' +
+              'latitudes for ~8 hours per orbit, then races through perigee in the south. Watch the ' +
+              'figure-8 ground track and notice how the satellite slows down at the top of each loop. ' +
+              'Russia\'s <strong>Molniya-1T</strong> series pioneered this orbit in the 1960s, ' +
+              'and the modern <strong>Meridian</strong> constellation continues to provide Arctic ' +
+              'communications from the same type of orbit today.',
+        orbits: ['molniya'],
+        play: true,
+        track: 'molniya'
+      },
+      {
+        center: [0, 30], zoom: 2.0, pitch: 0, bearing: 0,
+        title: 'MEO / GPS',
+        body: '<span class="c-meo">GPS satellites</span> orbit at 20,200 km with 55\u00B0 inclination, ' +
+              'completing two orbits per sidereal day. Their ground tracks repeat daily. The U.S. ' +
+              '<strong>GPS III</strong> constellation, Europe\'s <strong>Galileo</strong>, and Russia\'s ' +
+              '<strong>GLONASS</strong> all operate in MEO. A full constellation of 24+ satellites in ' +
+              '6 orbital planes ensures that every point on Earth can see at least 4 satellites.',
+        orbits: ['meo'],
+        play: true,
+        spin: -0.15
+      }
+    ];
+
+    var tourActive = false;
+    var tourStep = 0;
+    var preTourState = {};
+    var tourTrackOrbit = null; // orbit key to track during tour
+    var tourSpin = false;      // slow globe spin for high-altitude orbit steps
+    var tourSpinRate = 0;      // degrees per sim-second
+
+    var elTourBtn = document.getElementById('tour-btn');
+    var elTourPopup = document.getElementById('tour-popup');
+    var elTourStepLabel = document.getElementById('tour-step-label');
+    var elTourTitle = document.getElementById('tour-title');
+    var elTourBody = document.getElementById('tour-body');
+    var elTourPrev = document.getElementById('tour-prev');
+    var elTourNext = document.getElementById('tour-next');
+    var elTourEnd = document.getElementById('tour-end');
+
+    function setMapInteraction(on) {
+      var methods = ['scrollZoom', 'boxZoom', 'dragRotate', 'dragPan', 'keyboard', 'doubleClickZoom', 'touchZoomRotate', 'touchPitch'];
+      for (var i = 0; i < methods.length; i++) {
+        if (map[methods[i]]) map[methods[i]][on ? 'enable' : 'disable']();
+      }
+    }
+
+    function clearAllVisuals() {
+      ORBIT_KEYS.forEach(function (key) {
+        var trackSrc = map.getSource('track-' + key);
+        if (trackSrc) trackSrc.setData(EMPTY_FC);
+        activeOrbits[key] = false;
+      });
+      var markerSrc = map.getSource('sat-markers');
+      if (markerSrc) markerSrc.setData(EMPTY_FC);
+      var fpSrc = map.getSource('footprints');
+      if (fpSrc) fpSrc.setData(EMPTY_FC);
+      var swSrc = map.getSource('swath');
+      if (swSrc) swSrc.setData(EMPTY_FC);
+    }
+
+    function showTourStop(idx) {
+      tourStep = idx;
+      var stop = TOUR_STOPS[idx];
+      elTourStepLabel.textContent = 'Step ' + (idx + 1) + ' of ' + TOUR_STOPS.length;
+      elTourTitle.textContent = stop.title;
+      elTourBody.innerHTML = stop.body;
+      elTourPrev.style.display = idx === 0 ? 'none' : '';
+      elTourNext.style.display = idx === TOUR_STOPS.length - 1 ? 'none' : '';
+      elTourEnd.textContent = idx === TOUR_STOPS.length - 1 ? 'Finish' : 'End Tour';
+      elTourPopup.style.display = '';
+
+      // Reset sim time fresh for each stop
+      simTime = 0;
+      resetSwath();
+      lastTrackCenter = null;
+
+      // Clear all visuals before showing the new stop's orbits
+      clearAllVisuals();
+
+      // Set orbit visibility for this stop only
+      ORBIT_KEYS.forEach(function (key) {
+        var shouldBeOn = stop.orbits.indexOf(key) >= 0;
+        var chk = document.getElementById('chk-' + key);
+        if (chk) chk.checked = shouldBeOn;
+        onOrbitToggle(key, shouldBeOn);
+      });
+
+      // Footprint: always on during tour
+      showFootprint = true;
+      document.getElementById('chk-footprint').checked = true;
+
+      // Swath
+      if (stop.swath) {
+        showSwath = true;
+        document.getElementById('chk-swath').checked = true;
+      } else {
+        showSwath = false;
+        document.getElementById('chk-swath').checked = false;
+      }
+
+      // Speed: default to 10x unless the stop specifies otherwise
+      simSpeed = stop.speed || 100;
+      speedBtns.forEach(function (b) {
+        b.classList.toggle('active', parseInt(b.getAttribute('data-speed')) === simSpeed);
+      });
+
+      // Tour tracking and spin
+      tourTrackOrbit = stop.track || null;
+      tourSpin = !!stop.spin;
+      tourSpinRate = stop.spin || 0;
+
+      // Play/pause
+      if (stop.play && !simRunning) {
+        simRunning = true;
+        elPlayBtn.innerHTML = '&#9646;&#9646;';
+        lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      } else if (!stop.play && simRunning) {
+        simRunning = false;
+        elPlayBtn.innerHTML = '&#9654;';
+      }
+
+      map.flyTo({
+        center: stop.center,
+        zoom: stop.zoom,
+        pitch: stop.pitch || 0,
+        bearing: stop.bearing || 0,
+        duration: 3000,
+        essential: true
+      });
+    }
+
+    function startTour() {
+      tourActive = true;
+      preTourState = {
+        activeOrbits: Object.assign({}, activeOrbits),
+        selectedOrbit: selectedOrbit,
+        simRunning: simRunning,
+        simSpeed: simSpeed,
+        simTime: simTime,
+        showSwath: showSwath,
+        showFootprint: showFootprint
+      };
+      simTime = 0;
+      elTourBtn.style.display = 'none';
+      setMapInteraction(false);
+      headerBody.classList.add('tour-locked');
+      document.getElementById('info').classList.add('tour-locked');
+      showTourStop(0);
+    }
+
+    function endTour() {
+      tourActive = false;
+      tourTrackOrbit = null;
+      tourSpin = false;
+      lastTrackCenter = null;
+      elTourPopup.style.display = 'none';
+      elTourBtn.style.display = '';
+      setMapInteraction(true);
+      headerBody.classList.remove('tour-locked');
+      document.getElementById('info').classList.remove('tour-locked');
+
+      // Restore all pre-tour state
+      Object.keys(ORBITS).forEach(function (key) {
+        var shouldBeOn = !!preTourState.activeOrbits[key];
+        var chk = document.getElementById('chk-' + key);
+        if (chk) chk.checked = shouldBeOn;
+        onOrbitToggle(key, shouldBeOn);
+      });
+
+      selectedOrbit = preTourState.selectedOrbit || null;
+
+      showSwath = preTourState.showSwath || false;
+      showFootprint = preTourState.showFootprint !== undefined ? preTourState.showFootprint : true;
+      document.getElementById('chk-swath').checked = showSwath;
+      document.getElementById('chk-footprint').checked = showFootprint;
+
+      simTime = preTourState.simTime || 0;
+      simSpeed = preTourState.simSpeed || 1;
+      speedBtns.forEach(function (b) {
+        b.classList.toggle('active', parseInt(b.getAttribute('data-speed')) === simSpeed);
+      });
+
+      if (preTourState.simRunning && !simRunning) {
+        simRunning = true;
+        elPlayBtn.innerHTML = '&#9646;&#9646;';
+        lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      } else if (!preTourState.simRunning && simRunning) {
+        simRunning = false;
+        elPlayBtn.innerHTML = '&#9654;';
+      }
+
+      updateInfoPanel();
+      updateMarkers();
+    }
+
+    elTourBtn.addEventListener('click', startTour);
+    elTourPrev.addEventListener('click', function () {
+      if (tourStep > 0) showTourStop(tourStep - 1);
+    });
+    elTourNext.addEventListener('click', function () {
+      if (tourStep < TOUR_STOPS.length - 1) showTourStop(tourStep + 1);
+    });
+    elTourEnd.addEventListener('click', endTour);
+
+    // ========== Map Load ==========
+    map.on('load', function () {
+      map.setProjection({ type: 'globe' });
+      map.setSky({ 'atmosphere-blend': 0.7 });
+      document.getElementById('map').style.background = '#000';
+
+      // Ground track sources and layers per orbit
+      ORBIT_KEYS.forEach(function (key) {
+        var orb = ORBITS[key];
+        map.addSource('track-' + key, { type: 'geojson', data: EMPTY_FC });
+
+        var paintProps = {
+          'line-color': orb.color,
+          'line-width': 2,
+          'line-opacity': 0.8
+        };
+
+        var layoutProps = {};
+        if (orb.dasharray) {
+          paintProps['line-dasharray'] = orb.dasharray;
+        }
+
+        map.addLayer({
+          id: 'track-' + key,
+          type: 'line',
+          source: 'track-' + key,
+          layout: layoutProps,
+          paint: paintProps
+        });
+      });
+
+      // Swath layer
+      map.addSource('swath', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({
+        id: 'swath',
+        type: 'fill',
+        source: 'swath',
+        paint: {
+          'fill-color': '#60a5fa',
+          'fill-opacity': ['get', 'opacity']
+        }
+      });
+
+      // Footprint layer
+      map.addSource('footprints', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({
+        id: 'footprints',
+        type: 'fill',
+        source: 'footprints',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.12
+        }
+      });
+      map.addLayer({
+        id: 'footprints-outline',
+        type: 'line',
+        source: 'footprints',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 1.5,
+          'line-opacity': 0.4
+        }
+      });
+
+      // Satellite markers
+      map.addSource('sat-markers', { type: 'geojson', data: EMPTY_FC });
+      map.addLayer({
+        id: 'sat-markers-glow',
+        type: 'circle',
+        source: 'sat-markers',
+        paint: {
+          'circle-radius': 12,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.15,
+          'circle-blur': 1
+        }
+      });
+      map.addLayer({
+        id: 'sat-markers',
+        type: 'circle',
+        source: 'sat-markers',
+        paint: {
+          'circle-radius': 5,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.95,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-opacity': 0.6
+        }
+      });
+
+      // Click on satellite marker to select for info
+      map.on('click', 'sat-markers', function (e) {
+        if (e.features && e.features.length > 0) {
+          selectedOrbit = e.features[0].properties.orbit;
+          updateInfoPanel();
+        }
+      });
+      map.on('mouseenter', 'sat-markers', function () {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'sat-markers', function () {
+        map.getCanvas().style.cursor = '';
+      });
+
+      drawAltitudeDiagram([]);
+      updateInfoPanel();
+    });
+  </script>
+</body>
+</html>
