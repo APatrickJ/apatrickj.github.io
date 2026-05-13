@@ -1,2 +1,6 @@
 .DS_Store
 *.bak
+resume/*.pdf
+resume/*.aux
+resume/*.log
+resume/*.out

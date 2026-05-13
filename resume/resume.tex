@@ -1,0 +1,217 @@
+\documentclass[10pt,letterpaper]{article}
+
+\usepackage[margin=0.86in,top=0.6in,bottom=0.2in]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fontenc}
+\usepackage{helvet}
+\usepackage{tabularx}
+\usepackage{colortbl}
+
+\renewcommand{\familydefault}{\sfdefault}
+
+% Colors
+\definecolor{sectionblue}{HTML}{4F81BD}
+\definecolor{linkblue}{HTML}{0563C1}
+\definecolor{rulecolor}{HTML}{808080}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    urlcolor=linkblue,
+    pdfborder={0 0 0},
+}
+
+% Remove page numbers
+\pagestyle{empty}
+
+% Section formatting: blue text with gray rules above and below
+\titleformat{\section}
+  {\normalsize\bfseries\color{sectionblue}}
+  {}{0em}{}
+  [\vspace{-6pt}]
+
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+
+% Custom section with gray rules
+\newcommand{\ressection}[1]{%
+  \vspace{3pt}%
+  {\color{rulecolor}\hrule height 0.5pt}%
+  \vspace{3pt}%
+  {\normalsize\bfseries\color{sectionblue}#1}%
+  \vspace{3pt}%
+  {\color{rulecolor}\hrule height 0.5pt}%
+  \vspace{3pt}%
+}
+
+% Job header: bold company left, date right
+\newcommand{\jobheader}[2]{%
+  \vspace{3pt}%
+  \hspace{1em}\textbf{#1}\hfill#2%
+  \vspace{1pt}%
+}
+
+% Job title (italic)
+\newcommand{\jobtitle}[1]{%
+  \par\hspace{1em}\textit{#1}%
+  \vspace{2pt}%
+}
+
+% Bullet list settings
+\setlist[itemize]{
+  leftmargin=2.4em,
+  topsep=1pt,
+  itemsep=1pt,
+  parsep=1pt,
+  label=\textbullet
+}
+\setlist[itemize,2]{
+  leftmargin=1.5em,
+  topsep=1pt,
+  itemsep=1pt,
+  parsep=1pt,
+  label=--
+}
+
+% Tighter spacing
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+
+\begin{document}
+
+% ===== HEADER =====
+\begin{center}
+  {\large\bfseries\color{sectionblue}PATRICK JOHNSON}\\[4pt]
+  {\small patrick@johnsonfamily.me\quad\textbullet\quad\href{https://apatrickj.github.io/}{apatrickj.github.io}}
+\end{center}
+
+% ===== SUMMARY =====
+\ressection{SUMMARY}
+
+\hspace{1em}\parbox{\dimexpr\textwidth-1em}{%
+Software engineer with nearly two decades of experience. Primary experience includes highly scalable and reliable services, infrastructure, system architecture, and automation. Currently working at the intersection of geospatial technologies, machine learning, and environmental impact.%
+}
+
+% ===== EXPERIENCE =====
+\ressection{EXPERIENCE}
+
+\jobheader{Allen Institute for AI}{September 2021 -- Present}
+\jobtitle{Senior Software Engineer}
+
+\begin{itemize}
+  \item Pioneered the software engineering practice on the \href{https://allenai.org/olmoearth}{OlmoEarth} team. OlmoEarth is an end-to-end platform for scalable planetary intelligence that turns Earth data into decision-ready insights. Work includes distributed data pipelines, STAC-based satellite imagery services, and geospatial ML infrastructure.
+    \begin{itemize}
+      \item Technical lead for OlmoEarth Studio, where users annotate data, train models, and run inference.
+      \item Led design and implementation for computing \href{https://allenai.org/blog/olmoearth-embeddings}{custom geospatial embeddings}.
+      \item Architected a dataset acquisition service with a unified metadata index across multiple satellite data providers, replacing external API dependencies to improve reliability, performance, and multi-source data access.
+    \end{itemize}
+  \item First author on research into high-resolution live fuel moisture content (LFMC) maps for wildfire risk using multimodal earth observation data. Accepted at TerraBytes 2025 and published in PMLR.
+  \item Built AI tools for \href{https://allenai.org/wildlands}{wildfire resiliency} from the ground up and drove partnerships with research and government collaborators.
+\end{itemize}
+
+\jobheader{Google}{July 2007 -- May 2021}
+\jobtitle{Senior Software Engineer}
+
+\begin{itemize}
+  \item Technical Lead for software to maintain high-quality, accurate models of Google's datacenters and make the data accessible, consistent, and useful.
+    \begin{itemize}
+      \item Services are used by planning and execution teams to facilitate efficient management of compute, storage, and network capacity in Google's datacenters.
+    \end{itemize}
+  \item Developed backend features in \textit{Google Contacts}, which allows users to intelligently manage their contacts, and \textit{People API}, which provides authenticated developer access to contacts and profile information. Focused on functionality for enterprise users.
+    \begin{itemize}
+      \item Improved stability and latency of the \textit{G Suite} directory autocomplete and search system.
+      \item Co-led a team of six engineers to build an enterprise feature that enables custom directories, allowing administrators flexible control over directory visibility within their organizations.
+      \item Built a service that provides duplicate contact suggestions and merge functionality.
+    \end{itemize}
+  \item Architected automation and tooling for the \textit{Borg} cluster management system, which handles hundreds of thousands of jobs from thousands of applications across Google.
+    \begin{itemize}
+      \item Made significant technical improvements to the accuracy and scalability of simulation tooling. This is used to measure system performance under real-world load.
+      \item Designed and developed a widely adopted test framework for writing system tests.
+    \end{itemize}
+  \item Built test infrastructure for the \textit{Caffeine} web indexing system, which when launched in 2010 provided 50\% fresher results for web searches than the previous web search index.
+  \item Developed test infrastructure for the \textit{Google Chrome} / \textit{Chromium} web browser during its pre-launch and early post-launch stages. The browser launched publicly in 2008. Focused on distributed reliability testing: automated crash testing and stack trace analysis by loading millions of popular web pages against new browser builds.
+  \item Hosted two interns and supervised their summer projects.
+\end{itemize}
+
+\jobheader{Parity Computing}{December 2005 -- July 2007}
+\jobtitle{Software Developer}
+
+\begin{itemize}
+  \item Developed text processing software for mining and analyzing scholarly publications, including finding inter-document links and relationships using citations and references.
+\end{itemize}
+
+\jobheader{ISS EarthKAM}{June 2006 -- September 2006}
+\jobtitle{Software Developer Intern}
+
+\begin{itemize}
+  \item Developed software to assist with storing data from the EarthKAM program, allowing middle school students to take photos of specific places on Earth from the International Space Station. Used vector data from the Johnson Space Center for image targeting.
+\end{itemize}
+
+\jobheader{Teradata, a division of NCR Corporation}{June 2005 -- December 2005}
+\jobtitle{Software Engineering Intern}
+
+\begin{itemize}
+  \item Developed client software for a large-scale data warehouse.
+\end{itemize}
+
+% ===== VOLUNTEERING =====
+\ressection{VOLUNTEERING}
+
+\jobheader{TEALS}{September 2015 -- June 2022}
+\jobtitle{Volunteer Teacher / TA}
+
+\begin{itemize}
+  \item The goal of the TEALS program is to connect classroom teachers with tech-industry workers to create sustainable Computer Science programs.
+  \item As part of the TEALS program, served as a volunteer teacher and teaching assistant at high schools in Redmond, WA and Easton, WA.
+  \item Classes taught include: Intro to Computer Science, AP Computer Science A, Advanced Projects, and Data Structures and Algorithms.
+\end{itemize}
+
+% ===== SKILLS & PROFICIENCIES =====
+\ressection{SKILLS \& PROFICIENCIES}
+
+\begin{itemize}
+  \item Nearly two decades of professional software engineering experience.
+  \item Substantial experience with distributed systems and multithreaded services.
+  \item Experience with geospatial ML infrastructure, satellite data pipelines, and earth observation platforms.
+  \item Adept at working in and debugging large, complex codebases.
+  \item Effective team collaborator. Able to work with others to set priorities and achieve common goals.
+\end{itemize}
+
+% ===== PUBLICATIONS =====
+\ressection{PUBLICATIONS}
+
+\begin{itemize}
+  \item High-Resolution LFMC Maps for Wildfire Risk From Multimodal Earth Observation Data. \href{https://proceedings.mlr.press/v292/}{TerraBytes 2025}.
+  \item OlmoEarth: Stable Latent Image Modeling for Multimodal Earth Observation. arXiv 2025.
+\end{itemize}
+
+% ===== EDUCATION =====
+\ressection{EDUCATION}
+
+\jobheader{University of Illinois Urbana-Champaign}{}
+\par\hspace{1em}\textit{Urbana, IL (Online)}
+
+\begin{itemize}
+  \item Master of Science in CyberGIS and Geospatial Data Science\hfill 2023 -- 2025
+  \item Graduate-Level Certificate in Weather and Climate Risk and Data Analytics\hfill 2022
+\end{itemize}
+
+\jobheader{University of California San Diego}{}
+\par\hspace{1em}\textit{La Jolla, CA}
+
+\begin{itemize}
+  \item Bachelor of Science in Computer Science, \textit{summa cum laude}\hfill 2003 -- 2007
+\end{itemize}
+
+% ===== PROFESSIONAL DEVELOPMENT =====
+\ressection{PROFESSIONAL DEVELOPMENT}
+
+\jobheader{Machine Learning, Stanford Online on Coursera}{2020}
+
+\begin{itemize}
+  \item 11-week course covering the foundations of machine learning, data mining, and statistical pattern recognition.
+\end{itemize}
+
+\end{document}
