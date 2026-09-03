@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map Projection Distortion</title>
+  <meta name="description" content="Interactive visualization of what map projections preserve and what they destroy: conformal, equal-area, equidistant, and compromise projections compared through their distortion fields.">
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+  <script src="https://unpkg.com/d3-geo-projection@4/dist/d3-geo-projection.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      background: #0b1220;
+    }
+
+    #map { width: 100vw; height: 100vh; display: block; cursor: crosshair; touch-action: none; }
+    #map.dragging { cursor: grabbing; }
+
+    .panel {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 10px;
+      color: #e2e8f0;
+      z-index: 10;
+    }
+
+    /* ---- Header Panel ---- */
+    #header {
+      top: 12px;
+      left: 12px;
+      padding: 16px 20px;
+      max-width: 390px;
+    }
+
+    #header .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    #header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.01em;
+    }
+
+    .toggle-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .toggle-btn:hover { color: #94a3b8; }
+
+    #header-body {
+      margin-top: 10px;
+      max-height: var(--header-max, 620px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+      opacity: 1;
+    }
+
+    #header-body.collapsed { max-height: 0; opacity: 0; margin-top: 0; }
+
+    #header p {
+      font-size: 12.5px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    #header p + p { margin-top: 8px; }
+
+    .c-blue { color: #60a5fa; }
+    .c-red { color: #f87171; }
+    .c-amber { color: #fbbf24; }
+    .c-green { color: #4ade80; }
+    .c-orange { color: #ee8143; }
+
+    #header details {
+      margin-top: 12px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      padding-top: 10px;
+    }
+
+    #header summary {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #header summary:hover { color: #cbd5e1; }
+
+    #header details p,
+    #header details li {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    #header details ul { margin-top: 8px; padding-left: 16px; }
+    #header details li { margin-bottom: 5px; }
+    #header details p { margin-top: 8px; }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    /* ---- Right-hand column ---- */
+    #right-col {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      bottom: 116px;
+      width: 262px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      z-index: 10;
+      scrollbar-width: thin;
+    }
+
+    #right-col > .panel { position: static; flex-shrink: 0; }
+
+    /* ---- Controls ---- */
+    #controls { padding: 11px 13px; }
+
+    .ctl-label {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    #proj-select {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.6);
+      color: #e2e8f0;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12.5px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    #proj-select:focus { outline: none; border-color: rgba(96, 165, 250, 0.6); }
+    #proj-select optgroup { background: #0f172a; color: #64748b; font-style: normal; }
+    #proj-select option { background: #0f172a; color: #e2e8f0; }
+
+    .family-card {
+      margin-top: 7px;
+      padding: 7px 9px;
+      border-radius: 6px;
+      background: rgba(2, 6, 23, 0.45);
+      border: 1px solid rgba(100, 116, 139, 0.18);
+    }
+
+    .family-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .family-name svg { flex-shrink: 0; overflow: visible; }
+
+    .family-line { font-size: 11px; color: #94a3b8; line-height: 1.45; margin-top: 4px; }
+    .family-line b { color: #cbd5e1; font-weight: 600; }
+
+    .ctl-group { margin-top: 10px; }
+
+    .radio-row { display: flex; flex-direction: column; gap: 3px; }
+
+    .radio-row label,
+    .check-row label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+      padding: 1px 0;
+    }
+
+    .radio-row label:hover,
+    .check-row label:hover { color: #cbd5e1; }
+
+    .radio-row input, .check-row input { accent-color: #60a5fa; margin: 0; }
+
+    .check-row { display: flex; flex-direction: column; gap: 3px; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .slider-row span {
+      font-size: 10px;
+      color: #64748b;
+      width: 20px;
+      flex-shrink: 0;
+    }
+
+    .slider-row output {
+      font-size: 10.5px;
+      color: #94a3b8;
+      font-family: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+      width: 38px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      accent-color: #60a5fa;
+      height: 3px;
+    }
+
+    .btn-row { display: flex; gap: 6px; margin-top: 11px; }
+
+    .tour-btn {
+      background: rgba(96, 165, 250, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      flex: 1;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .tour-btn:hover { background: rgba(96, 165, 250, 0.25); border-color: rgba(96, 165, 250, 0.5); }
+
+    .ghost-btn {
+      background: rgba(100, 116, 139, 0.18);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .ghost-btn:hover { background: rgba(100, 116, 139, 0.32); color: #cbd5e1; }
+
+    /* A tour step can point at a panel; this is how the panel answers. */
+    .panel.highlight {
+      border-color: rgba(96, 165, 250, 0.75);
+      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35), 0 0 24px rgba(96, 165, 250, 0.3);
+      animation: panel-pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes panel-pulse {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.3), 0 0 18px rgba(96, 165, 250, 0.22); }
+      50%      { box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.5), 0 0 30px rgba(96, 165, 250, 0.42); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .panel.highlight { animation: none; }
+    }
+
+    /* ---- Trade-off scatter ---- */
+    #tradeoff {
+      left: 12px;
+      bottom: 116px;
+      width: 276px;
+      padding: 11px 13px;
+    }
+
+    #tradeoff .top-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #tradeoff h2 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    #tradeoff .sub {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-top: 3px;
+    }
+
+    #scatter { display: block; margin-top: 6px; overflow: visible; }
+
+    #scatter .axis-line { stroke: rgba(148, 163, 184, 0.45); stroke-width: 1; }
+    #scatter .edge-line { stroke: rgba(148, 163, 184, 0.9); stroke-width: 1.5; }
+    #scatter .grid { stroke: rgba(100, 116, 139, 0.16); stroke-width: 1; }
+    #scatter text { fill: #64748b; font-size: 8.5px; font-family: inherit; }
+    #scatter .edge-label { fill: #94a3b8; font-size: 8.5px; font-weight: 600; }
+    #scatter .mark { fill: #94a3b8; stroke: rgba(15, 23, 42, 0.9); stroke-width: 1; cursor: pointer; }
+    #scatter .mark:hover { fill: #cbd5e1; }
+    #scatter .mark.selected { fill: #60a5fa; stroke: #0f172a; stroke-width: 1.5; }
+    #scatter .sel-label { fill: #bfdbfe; font-size: 9px; font-weight: 600; pointer-events: none; }
+
+    .scatter-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(100, 116, 139, 0.18);
+    }
+
+    .scatter-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+
+    .scatter-legend svg { overflow: visible; }
+
+    .scatter-note {
+      font-size: 10px;
+      color: #64748b;
+      line-height: 1.45;
+      margin-top: 6px;
+    }
+
+    /* ---- Tour Popup ---- */
+    #tour-popup {
+      bottom: 116px;
+      left: 12px;
+      max-width: 390px;
+      padding: 18px 22px;
+    }
+
+    /* Wherever the trade-off panel is shown, the tour popup sits beside it. */
+    @media (min-width: 1081px) and (min-height: 741px) {
+      #tour-popup { left: 300px; }
+    }
+
+    #tour-popup .tour-step {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    #tour-popup h2 { font-size: 16px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+
+    /* Long steps scroll their own text rather than pushing the nav off-screen. */
+    #tour-popup p {
+      font-size: 13px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+      max-height: calc(100vh - 300px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    /* The intro panel is redundant while the tour is talking, and its space is needed. */
+    body.touring #header-body { max-height: 0; opacity: 0; margin-top: 0; }
+
+    #tour-figure:not(:empty) {
+      margin: 0 0 14px;
+      padding: 10px 4px 4px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+      border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    #tour-figure svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+    .tour-nav { display: flex; gap: 8px; }
+
+    .tour-nav-btn {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .tour-nav-btn:hover { background: rgba(100, 116, 139, 0.35); }
+
+    .tour-nav-primary {
+      background: rgba(96, 165, 250, 0.2);
+      color: #93c5fd;
+      border-color: rgba(96, 165, 250, 0.3);
+    }
+
+    .tour-nav-primary:hover { background: rgba(96, 165, 250, 0.35); }
+
+    /* ---- Info Bar ---- */
+    #info {
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .chip-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      flex-shrink: 0;
+    }
+
+    .chip-caption { font-size: 8px; color: #64748b; text-align: center; line-height: 1.3; }
+
+    .stats-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .stat { display: flex; flex-direction: column; gap: 1px; }
+
+    .stat-label {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+      white-space: nowrap;
+      color: #e2e8f0;
+    }
+
+    .stat-sub { font-size: 9px; color: #64748b; font-family: 'SF Mono', ui-monospace, Menlo, monospace; }
+
+    #legend-box { flex-shrink: 0; width: 190px; }
+
+    #legend-title {
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    #legend-bar {
+      height: 10px;
+      border-radius: 2px;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+    }
+
+    #legend-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 3px;
+      font-size: 9px;
+      color: #64748b;
+      font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+    }
+
+    .attribution { font-size: 9px; color: #475569; margin-left: auto; text-align: right; flex-shrink: 0; }
+    .attribution a { color: #64748b; }
+
+    #busy {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px;
+      color: #94a3b8;
+      z-index: 20;
+      display: none;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 1080px) {
+      #tradeoff { display: none; }
+    }
+
+    /* The chart needs the bottom-left corner free of the header panel above it. */
+    @media (max-height: 740px) {
+      #tradeoff { display: none; }
+    }
+
+    @media (max-width: 720px) {
+      #header { max-width: none; right: 12px; padding: 12px 16px; }
+      #header h1 { font-size: 15px; }
+      #right-col { top: auto; bottom: 124px; height: auto; max-height: 46vh; width: 224px; }
+      #info { gap: 10px 14px; padding: 8px 12px; flex-wrap: wrap; }
+      .stats-row { gap: 14px; }
+      .stat-value { font-size: 13px; }
+      .stats-row .stat:nth-child(n+3) { display: none; }
+      .attribution { display: none; }
+      #legend-box { width: 128px; }
+      .chip-caption { display: none; }
+      #tour-popup { max-width: none; right: 12px; bottom: 124px; padding: 14px 16px; }
+      body.touring #right-col { display: none; }
+      #tour-popup p { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="map"></canvas>
+  <div id="busy">computing distortion field&hellip;</div>
+
+  <!-- Header -->
+  <div id="header" class="panel">
+    <div class="top-row">
+      <h1>What Projections Preserve</h1>
+      <button class="toggle-btn" id="toggle-header" title="Collapse">&minus;</button>
+    </div>
+    <div id="header-body">
+      <p>
+        A sphere cannot be flattened without stretching it, so every map projection
+        destroys something. The families are named for what each one refuses to give up.
+      </p>
+      <p>
+        The shading is the <b style="color:#cbd5e1">distortion field</b>: how wrong the map is
+        at every point. Switch between <span class="c-red">area</span> and
+        <span class="c-orange">angle</span> and watch what happens.
+        A <b style="color:#cbd5e1">conformal</b> projection's angle field goes completely
+        dark. An <b style="color:#cbd5e1">equal-area</b> projection's area field goes
+        completely dark. No projection can black out both.
+      </p>
+      <p>
+        <b style="color:#cbd5e1">Drag anywhere</b> to move the probe: an 800&nbsp;km circle
+        drawn on the actual globe. Watch it swell, shrink, and shear.
+      </p>
+      <details>
+        <summary>How this is computed</summary>
+        <ul>
+          <li>
+            At each point the projection is differentiated numerically, giving the
+            2&times;2 Jacobian that maps a tiny patch of sphere onto the screen.
+          </li>
+          <li>
+            Its two singular values <code>a</code> and <code>b</code> are the principal
+            scale factors: the semi-axes of Tissot's indicatrix, the ellipse a tiny circle
+            turns into.
+          </li>
+          <li>
+            <span class="c-red">Area scale</span> is <code>a&times;b</code>, relative to the
+            map's nominal scale. <span class="c-orange">Angular deformation</span> is
+            <code>&omega; = 2&middot;asin((a&minus;b)/(a+b))</code>, the largest angle
+            error at that point.
+          </li>
+          <li>
+            Conformal means <code>a = b</code> everywhere, so &omega; is exactly 0.
+            Equal-area means <code>a&times;b = 1</code> everywhere. Gauss's
+            <i>Theorema Egregium</i> says no projection of a sphere can do both.
+          </li>
+        </ul>
+        <p>
+          Numbers are computed live in your browser, not looked up. Distance mode compares
+          straight-line map distance from the probe against true great-circle distance.
+          Equidistant projections hold distance only from one point or along one set of
+          lines, so unlike the other two families they have no edge of their own on the
+          trade-off chart.
+        </p>
+      </details>
+    </div>
+  </div>
+
+  <!-- Right-hand column -->
+  <div id="right-col">
+
+  <!-- Controls -->
+  <div id="controls" class="panel">
+    <label class="ctl-label" for="proj-select">Projection</label>
+    <select id="proj-select"></select>
+
+    <div class="family-card">
+      <div class="family-name"><span id="family-mark"></span><span id="family-label"></span></div>
+      <div class="family-line" id="family-preserves"></div>
+      <div class="family-line" id="proj-blurb"></div>
+    </div>
+
+    <div class="ctl-group">
+      <span class="ctl-label">Distortion field</span>
+      <div class="radio-row">
+        <label><input type="radio" name="field" value="area" checked> Area &mdash; too big or too small</label>
+        <label><input type="radio" name="field" value="angle"> Angles &mdash; shape sheared</label>
+        <label><input type="radio" name="field" value="distance"> Distance from probe</label>
+        <label><input type="radio" name="field" value="none"> None</label>
+      </div>
+    </div>
+
+    <div class="ctl-group">
+      <span class="ctl-label">Overlays</span>
+      <div class="check-row">
+        <label><input type="checkbox" id="ck-tissot" checked> Tissot indicatrices</label>
+        <label><input type="checkbox" id="ck-graticule" checked> Graticule</label>
+        <label><input type="checkbox" id="ck-probe" checked> 800 km probe circle</label>
+      </div>
+    </div>
+
+    <div class="ctl-group">
+      <span class="ctl-label">Center the projection</span>
+      <div class="slider-row">
+        <span>lon</span>
+        <input type="range" id="rot-lon" min="-180" max="180" step="1" value="0">
+        <output id="out-lon">0&deg;</output>
+      </div>
+      <div class="slider-row">
+        <span>lat</span>
+        <input type="range" id="rot-lat" min="-90" max="90" step="1" value="0">
+        <output id="out-lat">0&deg;</output>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="tour-btn" class="tour-btn">Take a Tour</button>
+      <button id="reset-btn" class="ghost-btn" title="Reset centering">Reset</button>
+    </div>
+  </div>
+
+  </div><!-- /right-col -->
+
+  <!-- Trade-off scatter -->
+  <div id="tradeoff" class="panel">
+    <div class="top-row">
+      <h2>The trade-off</h2>
+    </div>
+    <div class="sub">Every projection sits on one edge or the other. Nothing reaches the corner.</div>
+    <svg id="scatter" width="250" height="152"></svg>
+    <div class="scatter-legend" id="scatter-legend"></div>
+    <div class="scatter-note">Area-weighted over the globe, 84&deg;S to 84&deg;N.</div>
+  </div>
+
+  <!-- Tour -->
+  <div id="tour-popup" class="panel" style="display:none">
+    <div class="tour-step" id="tour-step"></div>
+    <h2 id="tour-title"></h2>
+    <p id="tour-body"></p>
+    <div id="tour-figure"></div>
+    <div class="tour-nav">
+      <button id="tour-prev" class="tour-nav-btn">Back</button>
+      <button id="tour-next" class="tour-nav-btn tour-nav-primary">Next</button>
+      <button id="tour-end" class="tour-nav-btn">End Tour</button>
+    </div>
+  </div>
+
+  <!-- Info bar -->
+  <div id="info" class="panel">
+    <div class="chip-group">
+      <svg id="indicatrix" width="56" height="56" viewBox="-30 -30 60 60" aria-label="Tissot indicatrix at the probe">
+        <circle cx="0" cy="0" r="20" fill="none" stroke="rgba(100,116,139,0.6)" stroke-width="1" stroke-dasharray="3 3"/>
+        <ellipse id="ind-ellipse" cx="0" cy="0" rx="20" ry="20" fill="rgba(96,165,250,0.22)" stroke="#60a5fa" stroke-width="1.5"/>
+      </svg>
+      <span class="chip-caption">shape at probe<br>vs. true</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-label">Area at probe</span>
+        <span class="stat-value" id="v-area">--</span>
+        <span class="stat-sub" id="v-area-sub">&nbsp;</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Max angle error</span>
+        <span class="stat-value" id="v-omega">--</span>
+        <span class="stat-sub" id="v-omega-sub">&nbsp;</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Scale a / b</span>
+        <span class="stat-value" id="v-ab">--</span>
+        <span class="stat-sub">principal axes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Probe</span>
+        <span class="stat-value" id="v-pos">--</span>
+        <span class="stat-sub" id="v-place">&nbsp;</span>
+      </div>
+    </div>
+
+    <div id="legend-box">
+      <div id="legend-title">Area scale</div>
+      <div id="legend-bar"></div>
+      <div id="legend-ticks"></div>
+    </div>
+
+    <div class="attribution">
+      Boundaries <a href="https://github.com/topojson/world-atlas" target="_blank" rel="noopener">Natural Earth</a><br>
+      Projections via <a href="https://d3js.org/d3-geo-projection" target="_blank" rel="noopener">d3-geo-projection</a>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var RAD = Math.PI / 180;
+    var BG = '#0b1220';
+    var OCEAN = '#111d33';
+    var EARTH_R = 6371.0088; // km, used for the probe circle and distance readouts
+
+    // ---- Colour ramps -------------------------------------------------------
+    // Diverging (area, distance): blue <-> red poles for "too small" <-> "too big",
+    // with the ocean colour itself as the neutral midpoint, so a projection with no
+    // distortion of that kind renders as literally nothing.
+    // Sequential (angles): one hue, orange, receding into the same surface at zero.
+    // Every arm below is validated for lightness monotonicity, adjacent step gaps,
+    // single hue and contrast against the ocean surface.
+    var RAMP_LOW = ['#184f95', '#256abf', '#3987e5'];
+    var RAMP_HIGH = ['#a52c2c', '#c73a3a', '#e34948'];
+    var RAMP_ANGLE = ['#8f4419', '#b0521e', '#d95926'];
+
+    var AREA_MAX_LOG2 = 3;   // field saturates at 1/8x and 8x
+    var ANGLE_MAX = 60;      // field saturates at 60 degrees
+    var DIST_MAX_LOG2 = 1.5; // distance ratio field saturates at ~0.35x and 2.8x
+
+    // piecewise() passes exactly through every stop, so the midpoint really is the
+    // ocean colour rather than a spline's approximation of it.
+    var divergingRamp = d3.piecewise(d3.interpolateLab,
+      RAMP_LOW.slice().reverse().concat([OCEAN], RAMP_HIGH));
+    var angleRampFn = d3.piecewise(d3.interpolateLab, [OCEAN].concat(RAMP_ANGLE));
+
+    // Ratio-style diverging colour: t is log2(value), 0 = true.
+    function ratioColor(t, maxLog2) {
+      var u = Math.max(-1, Math.min(1, t / maxLog2));
+      var rgb = d3.rgb(divergingRamp((u + 1) / 2));
+      return [rgb.r, rgb.g, rgb.b, 1];
+    }
+
+    function angleColor(omega) {
+      var u = Math.max(0, Math.min(1, omega / ANGLE_MAX));
+      var rgb = d3.rgb(angleRampFn(u));
+      return [rgb.r, rgb.g, rgb.b, 1];
+    }
+
+    // 256-entry lookup tables so the per-pixel loop never touches d3.rgb.
+    function buildLUT(fn) {
+      var lut = new Uint8ClampedArray(256 * 4);
+      for (var i = 0; i < 256; i++) {
+        var c = fn(i / 255);
+        lut[i * 4] = c[0]; lut[i * 4 + 1] = c[1]; lut[i * 4 + 2] = c[2];
+        lut[i * 4 + 3] = Math.round(c[3] * 255);
+      }
+      return lut;
+    }
+
+    var LUT_AREA = buildLUT(function (u) { return ratioColor((u * 2 - 1) * AREA_MAX_LOG2, AREA_MAX_LOG2); });
+    var LUT_ANGLE = buildLUT(function (u) { return angleColor(u * ANGLE_MAX); });
+    var LUT_DIST = buildLUT(function (u) { return ratioColor((u * 2 - 1) * DIST_MAX_LOG2, DIST_MAX_LOG2); });
+
+    // ---- Projection registry ------------------------------------------------
+    var FAMILIES = {
+      conformal: {
+        label: 'Conformal',
+        preserves: '<b>Keeps:</b> angles and local shape, exactly, everywhere.',
+        shape: 'circle'
+      },
+      equalarea: {
+        label: 'Equal-area',
+        preserves: '<b>Keeps:</b> area, exactly, everywhere.',
+        shape: 'square'
+      },
+      equidistant: {
+        label: 'Equidistant',
+        preserves: '<b>Keeps:</b> distance, but only from one point or along one set of lines.',
+        shape: 'triangle'
+      },
+      compromise: {
+        label: 'Compromise',
+        preserves: '<b>Keeps:</b> nothing exactly. It spreads the error around so no single kind gets ugly.',
+        shape: 'diamond'
+      },
+      other: {
+        label: 'Special purpose',
+        preserves: '<b>Keeps:</b> one specific geometric trick, and pays for it everywhere else.',
+        shape: 'cross'
+      }
+    };
+
+    // Band polygon used to fit projections whose far pole runs off to infinity.
+    function band(south, north) {
+      var ring = [], lon;
+      for (lon = -180; lon <= 180; lon += 5) ring.push([lon, north]);
+      for (lon = 180; lon >= -180; lon -= 5) ring.push([lon, south]);
+      ring.push([-180, north]);
+      return { type: 'Polygon', coordinates: [ring] };
+    }
+
+    var PROJECTIONS = [
+      { id: 'mercator', name: 'Mercator', family: 'conformal', global: true,
+        make: function () { return d3.geoMercator(); },
+        blurb: 'A straight line is a constant compass bearing, which is why it ruled navigation for 400 years.' },
+      { id: 'transverse', name: 'Transverse Mercator', family: 'conformal', global: true,
+        make: function () { return d3.geoTransverseMercator(); },
+        blurb: 'Mercator turned on its side. Narrow strips of it become the UTM zones.' },
+      { id: 'lcc', name: 'Lambert Conformal Conic', family: 'conformal', global: true,
+        make: function () { return d3.geoConicConformal().parallels([20, 60]); },
+        fit: band(-55, 84), clipView: true,
+        blurb: 'Aeronautical charts. True to scale along two chosen parallels, and it cannot show the far pole at all.' },
+      { id: 'stereographic', name: 'Stereographic', family: 'conformal', global: true,
+        make: function () { return d3.geoStereographic().clipAngle(150); },
+        blurb: 'Conformal and it maps every circle on the globe to a circle. Area runs away near the rim.' },
+      { id: 'peirce', name: 'Peirce Quincuncial', family: 'conformal', global: true,
+        make: function () { return d3.geoPeirceQuincuncial(); },
+        blurb: 'Conformal everywhere except four points, and it tiles the plane. Yes, the world really is a square.' },
+
+      { id: 'equalearth', name: 'Equal Earth', family: 'equalarea', global: true,
+        make: function () { return d3.geoEqualEarth(); },
+        blurb: 'Designed in 2018 to be equal-area without looking painful. The modern default.' },
+      { id: 'mollweide', name: 'Mollweide', family: 'equalarea', global: true,
+        make: function () { return d3.geoMollweide(); },
+        blurb: 'The classic ellipse. Honest about area, hard on the high latitudes.' },
+      { id: 'sinusoidal', name: 'Sinusoidal', family: 'equalarea', global: true,
+        make: function () { return d3.geoSinusoidal(); },
+        blurb: 'Every parallel is true to scale. The price shows in the shearing at the edges.' },
+      { id: 'hammer', name: 'Hammer', family: 'equalarea', global: true,
+        make: function () { return d3.geoHammer(); },
+        blurb: 'Equal-area with curved parallels, which tames the corners Mollweide mangles.' },
+      { id: 'eckert4', name: 'Eckert IV', family: 'equalarea', global: true,
+        make: function () { return d3.geoEckert4(); },
+        blurb: 'Flat poles instead of points, so polar regions keep some width.' },
+      { id: 'gallpeters', name: 'Gall-Peters', family: 'equalarea', global: true,
+        make: function () { return d3.geoCylindricalEqualArea().parallel(45); },
+        blurb: 'The one from the political argument. Areas are right; the stretching is severe.' },
+      { id: 'albers', name: 'Albers Conic', family: 'equalarea', global: true,
+        make: function () { return d3.geoConicEqualArea().parallels([20, 60]); },
+        blurb: 'The standard for statistical maps of mid-latitude countries.' },
+      { id: 'laea', name: 'Lambert Azimuthal Equal-Area', family: 'equalarea', global: true,
+        make: function () { return d3.geoAzimuthalEqualArea(); },
+        blurb: 'Whole earth in one disc with every area correct. Shapes at the rim pay for it.' },
+
+      { id: 'equirect', name: 'Plate Carrée', family: 'equidistant', global: true,
+        make: function () { return d3.geoEquirectangular(); },
+        blurb: 'Latitude and longitude plotted as x and y. True scale along every meridian, and along the equator.' },
+      { id: 'azeqd', name: 'Azimuthal Equidistant', family: 'equidistant', global: true,
+        make: function () { return d3.geoAzimuthalEquidistant(); },
+        blurb: 'Distance and direction are exact along every great circle through the center point, the one you set with the sliders below. The UN emblem, and every radio range chart.' },
+      { id: 'coniceqd', name: 'Conic Equidistant', family: 'equidistant', global: true,
+        make: function () { return d3.geoConicEquidistant().parallels([20, 60]); },
+        blurb: 'True scale along every meridian, and along its two standard parallels, here 20°N and 60°N.' },
+
+      { id: 'robinson', name: 'Robinson', family: 'compromise', global: true,
+        make: function () { return d3.geoRobinson(); },
+        blurb: 'Fitted by eye, not by formula. National Geographic’s world map from 1988 to 1998.' },
+      { id: 'winkel3', name: 'Winkel Tripel', family: 'compromise', global: true,
+        make: function () { return d3.geoWinkel3(); },
+        blurb: 'Averages the equirectangular and Aitoff projections. The current National Geographic standard.' },
+      { id: 'naturalearth', name: 'Natural Earth', family: 'compromise', global: true,
+        make: function () { return d3.geoNaturalEarth1(); },
+        blurb: 'Also fitted by hand, for the look of a world map rather than any exact property.' },
+      { id: 'vandergrinten', name: 'van der Grinten', family: 'compromise', global: true,
+        make: function () { return d3.geoVanDerGrinten(); },
+        blurb: 'The whole world in a circle. National Geographic used it until 1988.' },
+      { id: 'miller', name: 'Miller Cylindrical', family: 'compromise', global: true,
+        make: function () { return d3.geoMiller(); },
+        blurb: 'Mercator with the vertical stretch dialled back. No longer conformal, but the poles fit on the page.' },
+      { id: 'aitoff', name: 'Aitoff', family: 'compromise', global: true,
+        make: function () { return d3.geoAitoff(); },
+        blurb: 'Half of an azimuthal equidistant map, stretched back out to full width.' },
+
+      { id: 'gnomonic', name: 'Gnomonic', family: 'other', global: false,
+        make: function () { return d3.geoGnomonic().clipAngle(60); },
+        blurb: 'Every straight line is a great circle, so it plots shortest paths. Cannot even show a full hemisphere.' },
+      { id: 'orthographic', name: 'Orthographic', family: 'other', global: false,
+        make: function () { return d3.geoOrthographic().clipAngle(90); },
+        blurb: 'The view from infinitely far away. Distortion is what your eye would actually see.' }
+    ];
+
+    var byId = {};
+    PROJECTIONS.forEach(function (p) { byId[p.id] = p; });
+
+    // ---- State --------------------------------------------------------------
+    var state = {
+      proj: 'mercator',
+      field: 'area',
+      probe: [-42, 72],   // Greenland: the poster child
+      rotLon: 0,
+      rotLat: 0,
+      tissot: true,
+      graticule: true,
+      probeOn: true
+    };
+
+    var canvas = document.getElementById('map');
+    var ctx2d = canvas.getContext('2d');
+    var fieldCanvas = document.createElement('canvas');
+    var fieldCtx = fieldCanvas.getContext('2d');
+
+    var width = 0, height = 0, dpr = 1;
+    var projection = null, path = null;
+    var graticule = d3.geoGraticule10();
+    var land = null, borders = null;
+
+    // Hit-test path: geoPath applies the projection's clipping, so a Point that
+    // draws nothing is a point the projection does not show.
+    var hitCtx = {
+      hit: false,
+      beginPath: function () {}, closePath: function () {}, lineTo: function () {},
+      moveTo: function () { this.hit = true; },
+      arc: function () { this.hit = true; }
+    };
+    var hitPath = d3.geoPath(null, hitCtx).pointRadius(1);
+
+    function visible(lon, lat) {
+      hitCtx.hit = false;
+      hitPath({ type: 'Point', coordinates: [lon, lat] });
+      return hitCtx.hit;
+    }
+
+    // ---- Distortion ---------------------------------------------------------
+    // Numerically differentiate the projection at (lon, lat) and read off Tissot's
+    // indicatrix: principal scale factors a >= b, area scale a*b, maximum angular
+    // deformation omega, and the screen angle of the major axis.
+    function distortionAt(proj, lon, lat) {
+      var s = proj.scale();
+      var eps = 1e-5;                       // radians of arc on the unit sphere
+      var cosLat = Math.cos(lat * RAD);
+      if (!(cosLat > 1e-6)) return null;    // the parallel scale is undefined at the poles
+      var dLon = (eps / cosLat) / RAD;
+      var sgn = lat > 0 ? -1 : 1;           // step away from the nearer pole
+      var dLat = sgn * eps / RAD;
+
+      var p0 = proj([lon, lat]);
+      var pe = proj([lon + dLon, lat]);
+      var pn = proj([lon, lat + dLat]);
+      if (!p0 || !pe || !pn) return null;
+      if (!isFinite(p0[0]) || !isFinite(p0[1]) || !isFinite(pe[0]) || !isFinite(pe[1]) ||
+          !isFinite(pn[0]) || !isFinite(pn[1])) return null;
+
+      // A real derivative moves the point by about scale*eps. Anything larger means
+      // the sample straddled an interruption, a seam, or a singularity.
+      var jump = s * 1e-3;
+      if (Math.abs(pe[0] - p0[0]) > jump || Math.abs(pe[1] - p0[1]) > jump ||
+          Math.abs(pn[0] - p0[0]) > jump || Math.abs(pn[1] - p0[1]) > jump) return null;
+
+      // Jacobian columns: d(screen)/d(east arc), d(screen)/d(north arc), scale-normalised.
+      var a11 = (pe[0] - p0[0]) / eps / s;
+      var a21 = (pe[1] - p0[1]) / eps / s;
+      var a12 = (pn[0] - p0[0]) / (sgn * eps) / s;
+      var a22 = (pn[1] - p0[1]) / (sgn * eps) / s;
+
+      var E = a11 * a11 + a21 * a21;
+      var F = a11 * a12 + a21 * a22;
+      var G = a12 * a12 + a22 * a22;
+      var tr = E + G;
+      var disc = Math.sqrt(Math.max(0, (E - G) * (E - G) + 4 * F * F));
+      var a = Math.sqrt(Math.max(0, (tr + disc) / 2));
+      var b = Math.sqrt(Math.max(0, (tr - disc) / 2));
+      if (!isFinite(a) || a <= 0) return null;
+
+      // Principal direction in the domain, pushed through J to get its screen angle.
+      var phi = 0.5 * Math.atan2(2 * F, E - G);
+      var cp = Math.cos(phi), sp = Math.sin(phi);
+      var theta = Math.atan2(a21 * cp + a22 * sp, a11 * cp + a12 * sp);
+
+      return {
+        a: a, b: b,
+        area: a * b,
+        omega: 2 * Math.asin(Math.min(1, (a - b) / (a + b))) / RAD,
+        theta: theta
+      };
+    }
+
+    // ---- Projection construction -------------------------------------------
+    // The info bar wraps to different heights at different widths, so every panel
+    // that sits above it and the map's own bottom padding are measured from it.
+    var bottomClear = 116;
+
+    function measureClearance() {
+      var el = document.getElementById('info');
+      bottomClear = (el ? Math.round(el.getBoundingClientRect().height) : 88) + 20;
+      ['right-col', 'tradeoff', 'tour-popup'].forEach(function (id) {
+        var panel = document.getElementById(id);
+        if (panel) panel.style.bottom = bottomClear + 'px';
+      });
+      capHeader();
+    }
+
+    // The intro panel grows when its details section is opened, so it is capped to
+    // whatever room is left above the panels beneath it and scrolls past that.
+    function capHeader() {
+      var header = document.getElementById('header');
+      var titleRow = header.querySelector('.top-row');
+      if (!titleRow) return;
+      var hr = header.getBoundingClientRect();
+      var limit = height - bottomClear;
+
+      ['tradeoff', 'right-col'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el || getComputedStyle(el).display === 'none') return;
+        var r = el.getBoundingClientRect();
+        if (r.top < hr.top + 4) return;                       // sits beside, not below
+        if (r.right < hr.left || r.left > hr.right) return;   // no horizontal overlap
+        limit = Math.min(limit, r.top - 10);
+      });
+
+      // Room left once the title row, the panel's padding and the body margin are paid for.
+      var avail = limit - hr.top - titleRow.getBoundingClientRect().height - 42;
+      document.documentElement.style.setProperty('--header-max', Math.max(110, Math.round(avail)) + 'px');
+    }
+
+    function buildProjection() {
+      var def = byId[state.proj];
+      var p = def.make();
+      p.rotate([-state.rotLon, -state.rotLat, 0]);
+      p.precision(0.3);
+
+      var padX = 40;
+      var padTop = 24;
+      var padBottom = bottomClear + 8;
+      var extent = [[padX, padTop], [Math.max(padX + 10, width - padX), Math.max(padTop + 10, height - padBottom)]];
+      try {
+        p.fitExtent(extent, def.fit || { type: 'Sphere' });
+        if (!isFinite(p.scale()) || p.scale() <= 0) throw new Error('degenerate fit');
+      } catch (e) {
+        p.scale(Math.min(width, height) / 4).translate([width / 2, (height - padBottom) / 2]);
+      }
+      if (def.clipView) p.clipExtent([[0, 0], [width, height]]);
+      return p;
+    }
+
+    // ---- Field rendering ----------------------------------------------------
+    var FIELD_FAST = 7;
+    var FIELD_FINE = 3;
+    var fieldStep = FIELD_FINE;
+
+    function renderField(step) {
+      if (state.field === 'none') return;
+
+      var w = Math.max(1, Math.ceil(width / step));
+      var h = Math.max(1, Math.ceil(height / step));
+      fieldCanvas.width = w;
+      fieldCanvas.height = h;
+
+      var img = fieldCtx.createImageData(w, h);
+      var data = img.data;
+      var lut = state.field === 'area' ? LUT_AREA : (state.field === 'angle' ? LUT_ANGLE : LUT_DIST);
+      var invert = projection.invert;
+      var scale = projection.scale();
+      var probe = state.probe;
+      var probeXY = null;
+      if (state.field === 'distance') {
+        probeXY = visible(probe[0], probe[1]) ? projection(probe) : null;
+      }
+
+      for (var y = 0; y < h; y++) {
+        var py = (y + 0.5) * step;
+        for (var x = 0; x < w; x++) {
+          var px = (x + 0.5) * step;
+          var ll = invert ? invert([px, py]) : null;
+          if (!ll || !isFinite(ll[0]) || !isFinite(ll[1])) continue;
+
+          // Points outside the mapped region do not round-trip.
+          var back = projection(ll);
+          if (!back || Math.abs(back[0] - px) > 0.5 || Math.abs(back[1] - py) > 0.5) continue;
+
+          var idx;
+          if (state.field === 'distance') {
+            if (!probeXY) continue;
+            var trueArc = d3.geoDistance(probe, ll);              // radians
+            if (trueArc < 1e-6) { idx = 128; }
+            else {
+              var mapArc = Math.hypot(px - probeXY[0], py - probeXY[1]) / scale;
+              var t = Math.log2(mapArc / trueArc);
+              idx = Math.round(((Math.max(-DIST_MAX_LOG2, Math.min(DIST_MAX_LOG2, t)) / DIST_MAX_LOG2) + 1) / 2 * 255);
+            }
+          } else {
+            var d = distortionAt(projection, ll[0], ll[1]);
+            if (!d) continue;
+            if (state.field === 'area') {
+              var la = Math.log2(d.area);
+              idx = Math.round(((Math.max(-AREA_MAX_LOG2, Math.min(AREA_MAX_LOG2, la)) / AREA_MAX_LOG2) + 1) / 2 * 255);
+            } else {
+              idx = Math.round(Math.max(0, Math.min(1, d.omega / ANGLE_MAX)) * 255);
+            }
+          }
+
+          var o = (y * w + x) * 4, li = idx * 4;
+          data[o] = lut[li]; data[o + 1] = lut[li + 1];
+          data[o + 2] = lut[li + 2]; data[o + 3] = lut[li + 3];
+        }
+      }
+      fieldCtx.putImageData(img, 0, 0);
+    }
+
+    // ---- Drawing ------------------------------------------------------------
+    function drawGeo(object, fill, stroke, lineWidth) {
+      ctx2d.beginPath();
+      path(object);
+      if (fill) { ctx2d.fillStyle = fill; ctx2d.fill(); }
+      if (stroke) { ctx2d.strokeStyle = stroke; ctx2d.lineWidth = lineWidth || 1; ctx2d.stroke(); }
+    }
+
+    // Walk a great circle from (lon,lat) on the given bearing for an angular distance.
+    function destination(lon, lat, bearingDeg, angDeg) {
+      var br = bearingDeg * RAD, ad = angDeg * RAD;
+      var p1 = lat * RAD, l1 = lon * RAD;
+      var sinP2 = Math.sin(p1) * Math.cos(ad) + Math.cos(p1) * Math.sin(ad) * Math.cos(br);
+      var p2 = Math.asin(Math.max(-1, Math.min(1, sinP2)));
+      var l2 = l1 + Math.atan2(Math.sin(br) * Math.sin(ad) * Math.cos(p1),
+                               Math.cos(ad) - Math.sin(p1) * sinP2);
+      return [((l2 / RAD + 540) % 360) - 180, p2 / RAD];
+    }
+
+    var probeCircle = d3.geoCircle().precision(1);
+
+    function draw() {
+      ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      ctx2d.fillStyle = BG;
+      ctx2d.fillRect(0, 0, width, height);
+
+      var sphere = { type: 'Sphere' };
+
+      // Ocean
+      drawGeo(sphere, OCEAN, null);
+
+      // Distortion field, clipped to the mapped region
+      if (state.field !== 'none' && fieldCanvas.width > 1) {
+        ctx2d.save();
+        ctx2d.beginPath();
+        path(sphere);
+        ctx2d.clip();
+        ctx2d.imageSmoothingEnabled = true;
+        ctx2d.drawImage(fieldCanvas, 0, 0, width, height);
+        ctx2d.restore();
+      }
+
+      if (state.graticule) drawGeo(graticule, null, 'rgba(226,232,240,0.20)', 1);
+
+      // Coastlines are drawn as outlines only: a fill tint would sit on top of the
+      // colour-encoded field and change the value the reader sees.
+      if (land) drawGeo(land, null, 'rgba(248,250,252,0.85)', 1);
+      if (borders) drawGeo(borders, null, 'rgba(248,250,252,0.28)', 0.6);
+
+      if (state.tissot) drawTissot();
+
+      // Concentric range rings make "equidistant" visible in distance mode.
+      if (state.field === 'distance') {
+        ctx2d.setLineDash([3, 4]);
+        [2000, 4000, 6000, 8000].forEach(function (km) {
+          var r = (km / EARTH_R) / RAD;
+          if (r >= 179) return;
+          probeCircle.center(state.probe).radius(r);
+          var ring = probeCircle();
+          if (ringIsTorn(ring)) return;
+          drawGeo(ring, null, 'rgba(226,232,240,0.32)', 1);
+        });
+        ctx2d.setLineDash([]);
+      }
+
+      if (state.probeOn) drawProbe();
+
+      drawGeo(sphere, null, 'rgba(148,163,184,0.45)', 1);
+    }
+
+    function drawTissot() {
+      var R = 7;
+      var lats = [-75, -60, -30, 0, 30, 60, 75];
+      var lons = [-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150, 180];
+      ctx2d.lineWidth = 1.1;
+      for (var i = 0; i < lats.length; i++) {
+        for (var j = 0; j < lons.length; j++) {
+          var lat = lats[i], lon = lons[j];
+          if (!visible(lon, lat)) continue;
+          var d = distortionAt(projection, lon, lat);
+          if (!d) continue;
+          var p = projection([lon, lat]);
+          if (!p || !isFinite(p[0])) continue;
+          var ra = R * d.a, rb = R * d.b;
+          // Drawn to scale or not at all: clamping one would make it tell a lie.
+          if (ra > 46 || rb < 0.4) continue;
+          ctx2d.beginPath();
+          ctx2d.ellipse(p[0], p[1], ra, rb, d.theta, 0, 2 * Math.PI);
+          ctx2d.fillStyle = 'rgba(248,250,252,0.10)';
+          ctx2d.fill();
+          ctx2d.strokeStyle = 'rgba(248,250,252,0.72)';
+          ctx2d.stroke();
+        }
+      }
+    }
+
+    // On an interrupted projection a circle sitting on a lobe boundary is torn in
+    // two, and drawing it smears a band across the map. Detect the tear by looking
+    // for a jump between neighbouring points of the ring that no real circle makes.
+    function ringIsTorn(polygon) {
+      var ring = polygon.coordinates[0];
+      var limit = projection.scale() * 0.5;
+      var prev = null;
+      for (var i = 0; i < ring.length; i++) {
+        var p = projection(ring[i]);
+        if (!p || !isFinite(p[0]) || !isFinite(p[1])) return true;
+        if (prev && (Math.abs(p[0] - prev[0]) > limit || Math.abs(p[1] - prev[1]) > limit)) return true;
+        prev = p;
+      }
+      return false;
+    }
+
+    function drawProbe() {
+      var lon = state.probe[0], lat = state.probe[1];
+      var rDeg = (800 / EARTH_R) / RAD;
+
+      probeCircle.center(state.probe).radius(rDeg);
+      var circle = probeCircle();
+      if (ringIsTorn(circle)) {
+        var c = projection(state.probe);
+        if (c && isFinite(c[0]) && visible(lon, lat)) {
+          ctx2d.beginPath();
+          ctx2d.arc(c[0], c[1], 4, 0, 2 * Math.PI);
+          ctx2d.fillStyle = '#bfdbfe';
+          ctx2d.fill();
+        }
+        return;
+      }
+      drawGeo(circle, 'rgba(96,165,250,0.20)', '#60a5fa', 1.8);
+
+      // Two perpendicular geodesics through the probe: on a conformal projection
+      // they stay at 90 degrees on screen, everywhere else they shear.
+      var ns = { type: 'LineString', coordinates: [
+        [lon, Math.max(-89.9, lat - rDeg)], [lon, Math.min(89.9, lat + rDeg)]] };
+      var ew = { type: 'LineString', coordinates: [
+        destination(lon, lat, 270, rDeg), destination(lon, lat, 90, rDeg)] };
+      drawGeo(ns, null, 'rgba(191,219,254,0.85)', 1.2);
+      drawGeo(ew, null, 'rgba(191,219,254,0.85)', 1.2);
+
+      var p = projection(state.probe);
+      if (p && isFinite(p[0]) && visible(lon, lat)) {
+        ctx2d.beginPath();
+        ctx2d.arc(p[0], p[1], 2.5, 0, 2 * Math.PI);
+        ctx2d.fillStyle = '#bfdbfe';
+        ctx2d.fill();
+      }
+    }
+
+    // ---- Readouts -----------------------------------------------------------
+    var elArea = document.getElementById('v-area');
+    var elAreaSub = document.getElementById('v-area-sub');
+    var elOmega = document.getElementById('v-omega');
+    var elOmegaSub = document.getElementById('v-omega-sub');
+    var elAB = document.getElementById('v-ab');
+    var elPos = document.getElementById('v-pos');
+    var elPlace = document.getElementById('v-place');
+    var elEllipse = document.getElementById('ind-ellipse');
+
+    function fmtLatLon(lon, lat) {
+      var ns = lat >= 0 ? 'N' : 'S', ew = lon >= 0 ? 'E' : 'W';
+      return Math.abs(lat).toFixed(1) + '°' + ns + ' ' + Math.abs(lon).toFixed(1) + '°' + ew;
+    }
+
+    function updateReadout() {
+      var lon = state.probe[0], lat = state.probe[1];
+      elPos.textContent = fmtLatLon(lon, lat);
+
+      var d = distortionAt(projection, lon, lat);
+      var shown = visible(lon, lat);
+
+      if (!d || !shown) {
+        elArea.textContent = '--';
+        elOmega.textContent = '--';
+        elAB.textContent = '--';
+        elAreaSub.innerHTML = '&nbsp;';
+        elOmegaSub.innerHTML = shown ? '&nbsp;' : 'outside this projection';
+        elEllipse.setAttribute('rx', 20);
+        elEllipse.setAttribute('ry', 20);
+        return;
+      }
+
+      var area = d.area;
+      elArea.textContent = (area >= 100 ? area.toFixed(0) : area.toFixed(2)) + '×';
+      elArea.style.color = Math.abs(Math.log2(area)) < 0.01 ? '#4ade80' : (area > 1 ? '#f87171' : '#60a5fa');
+      elAreaSub.textContent = Math.abs(Math.log2(area)) < 0.005
+        ? 'exact'
+        : (area > 1 ? '+' + ((area - 1) * 100).toFixed(0) + '% too big'
+                    : '\u2212' + ((1 - area) * 100).toFixed(0) + '% too small');
+
+      elOmega.textContent = d.omega.toFixed(d.omega < 10 ? 2 : 1) + '°';
+      elOmega.style.color = d.omega < 0.01 ? '#4ade80' : '#ee8143';
+      elOmegaSub.textContent = d.omega < 0.01 ? 'shape exact' : 'shape sheared';
+
+      elAB.textContent = d.a.toFixed(2) + ' / ' + d.b.toFixed(2);
+
+      // Chip shows shape only: the ellipse is normalised to the reference circle's
+      // area so it reads as "how squashed", with the area number carrying size.
+      var k = Math.sqrt(d.area);
+      var rx = 20 * d.a / k, ry = 20 * d.b / k;
+      var m = Math.max(rx, ry);
+      if (m > 27) { rx *= 27 / m; ry *= 27 / m; }
+      elEllipse.setAttribute('rx', rx.toFixed(2));
+      elEllipse.setAttribute('ry', ry.toFixed(2));
+      elEllipse.setAttribute('transform', 'rotate(' + (d.theta / RAD).toFixed(1) + ')');
+    }
+
+    // ---- Legend -------------------------------------------------------------
+    var elLegendTitle = document.getElementById('legend-title');
+    var elLegendBar = document.getElementById('legend-bar');
+    var elLegendTicks = document.getElementById('legend-ticks');
+    var elLegendBox = document.getElementById('legend-box');
+
+    function composite(c) {
+      var base = d3.rgb(OCEAN);
+      var a = c[3];
+      return d3.rgb(
+        Math.round(c[0] * a + base.r * (1 - a)),
+        Math.round(c[1] * a + base.g * (1 - a)),
+        Math.round(c[2] * a + base.b * (1 - a))
+      ).formatHex();
+    }
+
+    function updateLegend() {
+      if (state.field === 'none') { elLegendBox.style.visibility = 'hidden'; return; }
+      elLegendBox.style.visibility = 'visible';
+
+      var stops = [], i, n = 24, title, ticks;
+      if (state.field === 'angle') {
+        title = 'Angular deformation ω';
+        for (i = 0; i <= n; i++) stops.push(composite(angleColor(i / n * ANGLE_MAX)));
+        ticks = ['0°', '20°', '40°', '60°+'];
+      } else {
+        var max = state.field === 'area' ? AREA_MAX_LOG2 : DIST_MAX_LOG2;
+        title = state.field === 'area' ? 'Area scale' : 'Ruler distance ÷ true';
+        for (i = 0; i <= n; i++) stops.push(composite(ratioColor((i / n * 2 - 1) * max, max)));
+        ticks = state.field === 'area'
+          ? ['⅛×', '½×', 'true', '2×', '8×']
+          : ['0.35×', '0.7×', 'true', '1.4×', '2.8×'];
+      }
+      elLegendTitle.textContent = title;
+      elLegendBar.style.background = 'linear-gradient(to right,' + stops.join(',') + ')';
+      elLegendTicks.innerHTML = ticks.map(function (t) { return '<span>' + t + '</span>'; }).join('');
+    }
+
+    // ---- Trade-off scatter --------------------------------------------------
+    var SCATTER_W = 250, SCATTER_H = 152;
+    var MARGIN = { top: 10, right: 12, bottom: 26, left: 40 };
+    var stats = {};   // id -> {omega, areaRms}
+    var scatterEls = {};
+
+    function computeStats() {
+      PROJECTIONS.forEach(function (def) {
+        if (!def.global) return;
+        var p = def.make().rotate([0, 0, 0]);
+        try { p.fitExtent([[0, 0], [900, 600]], def.fit || { type: 'Sphere' }); } catch (e) { p.scale(150); }
+        var wSum = 0, wOmega = 0, wArea = 0;
+        for (var lat = -84; lat <= 84; lat += 2) {
+          var w = Math.cos(lat * RAD);
+          for (var lon = -177.5; lon <= 177.5; lon += 2.5) {
+            var d = distortionAt(p, lon, lat);
+            if (!d) continue;
+            var xy = p([lon, lat]);
+            var inv = p.invert && p.invert(xy);
+            if (!inv) continue;
+            var back = p(inv);
+            if (Math.abs(back[0] - xy[0]) > 0.5 || Math.abs(back[1] - xy[1]) > 0.5) continue;
+            wSum += w;
+            wOmega += w * d.omega;
+            wArea += w * Math.pow(Math.log(d.area), 2);
+          }
+        }
+        if (wSum > 0) {
+          stats[def.id] = { omega: wOmega / wSum, areaRms: Math.sqrt(wArea / wSum) };
+        }
+      });
+    }
+
+    function markPath(shape, size) {
+      var s = size;
+      switch (shape) {
+        case 'square': return 'M' + (-s) + ',' + (-s) + 'h' + (2 * s) + 'v' + (2 * s) + 'h' + (-2 * s) + 'Z';
+        case 'triangle': return 'M0,' + (-s * 1.2) + 'L' + (s * 1.15) + ',' + (s * 0.85) + 'L' + (-s * 1.15) + ',' + (s * 0.85) + 'Z';
+        case 'diamond': return 'M0,' + (-s * 1.35) + 'L' + (s * 1.35) + ',0L0,' + (s * 1.35) + 'L' + (-s * 1.35) + ',0Z';
+        default: return 'M' + s + ',0A' + s + ',' + s + ' 0 1,1 ' + (-s) + ',0A' + s + ',' + s + ' 0 1,1 ' + s + ',0Z';
+      }
+    }
+
+    function buildScatter() {
+      var svg = d3.select('#scatter').attr('viewBox', '0 0 ' + SCATTER_W + ' ' + SCATTER_H);
+      var iw = SCATTER_W - MARGIN.left - MARGIN.right;
+      var ih = SCATTER_H - MARGIN.top - MARGIN.bottom;
+      var x = d3.scaleLinear().domain([0, 52]).range([0, iw]);
+      var y = d3.scaleLinear().domain([0, 2.15]).range([ih, 0]);   // linear in ln(area error)
+
+      var g = svg.append('g').attr('transform', 'translate(' + MARGIN.left + ',' + MARGIN.top + ')');
+
+      var yTicks = [0, Math.log(2), Math.log(4), Math.log(8)];
+      var yLabels = ['true', '×2', '×4', '×8'];
+      yTicks.forEach(function (t, i) {
+        g.append('line').attr('class', 'grid').attr('x1', 0).attr('x2', iw).attr('y1', y(t)).attr('y2', y(t));
+        g.append('text').attr('x', -6).attr('y', y(t) + 3).attr('text-anchor', 'end').text(yLabels[i]);
+      });
+      [0, 10, 20, 30, 40, 50].forEach(function (t) {
+        g.append('text').attr('x', x(t)).attr('y', ih + 12).attr('text-anchor', 'middle').text(t + '°');
+      });
+
+      // The two edges a projection can actually touch.
+      g.append('line').attr('class', 'edge-line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', 0).attr('y2', ih);
+      g.append('line').attr('class', 'edge-line').attr('x1', 0).attr('x2', iw).attr('y1', y(0)).attr('y2', y(0));
+      g.append('text').attr('class', 'edge-label').attr('transform', 'translate(' + (x(0) + 9) + ',' + (ih * 0.5) + ') rotate(-90)')
+        .attr('text-anchor', 'middle').text('conformal edge');
+      g.append('text').attr('class', 'edge-label').attr('x', iw).attr('y', y(0) - 6).attr('text-anchor', 'end')
+        .text('equal-area edge');
+
+      // The corner both edges meet at is the one place nothing can reach.
+      g.append('path').attr('d', 'M-4,-4 L4,4 M4,-4 L-4,4')
+        .attr('transform', 'translate(' + x(0) + ',' + y(0) + ')')
+        .attr('stroke', '#f87171').attr('stroke-width', 1.6).attr('fill', 'none');
+      g.append('text').attr('x', x(0) + 9).attr('y', y(0) - 16).attr('fill', '#f87171')
+        .attr('font-size', '8.5px').attr('font-weight', '600').text('impossible');
+
+      g.append('text').attr('x', iw / 2).attr('y', ih + 23).attr('text-anchor', 'middle')
+        .text('mean angle error →');
+      g.append('text').attr('transform', 'translate(' + (-30) + ',' + (ih / 2) + ') rotate(-90)')
+        .attr('text-anchor', 'middle').text('typical area error →');
+
+      PROJECTIONS.forEach(function (def) {
+        var st = stats[def.id];
+        if (!st) return;
+        var cx = x(Math.min(52, st.omega));
+        var cy = y(Math.min(2.15, st.areaRms));
+        var node = g.append('path')
+          .attr('class', 'mark')
+          .attr('d', markPath(FAMILIES[def.family].shape, 3.2))
+          .attr('transform', 'translate(' + cx + ',' + cy + ')');
+        node.append('title').text(def.name + ' — ' + FAMILIES[def.family].label +
+          '\nmean angle error ' + st.omega.toFixed(1) + '°' +
+          '\ntypical area error ×' + Math.exp(st.areaRms).toFixed(2));
+        node.on('click', function () { setProjection(def.id); });
+        scatterEls[def.id] = { node: node, x: cx, y: cy };
+      });
+
+      scatterEls.__label = g.append('text').attr('class', 'sel-label');
+
+      var legend = document.getElementById('scatter-legend');
+      ['conformal', 'equalarea', 'equidistant', 'compromise'].forEach(function (f) {
+        var chip = document.createElement('span');
+        chip.innerHTML = '<svg width="9" height="9" viewBox="-5 -5 10 10">' +
+          '<path d="' + markPath(FAMILIES[f].shape, 3.2) + '" fill="#94a3b8"/></svg>';
+        chip.appendChild(document.createTextNode(FAMILIES[f].label));
+        legend.appendChild(chip);
+      });
+    }
+
+    function updateScatter() {
+      Object.keys(scatterEls).forEach(function (id) {
+        if (id === '__label') return;
+        scatterEls[id].node.classed('selected', id === state.proj)
+          .attr('d', markPath(FAMILIES[byId[id].family].shape, id === state.proj ? 4.6 : 3.2));
+      });
+      var sel = scatterEls[state.proj];
+      var lab = scatterEls.__label;
+      if (!lab) return;
+      if (sel) {
+        var iw = SCATTER_W - MARGIN.left - MARGIN.right;
+        var ih = SCATTER_H - MARGIN.top - MARGIN.bottom;
+        var flipX = sel.x > iw * 0.55;
+        // Clear the two standing edge labels when the dot sits on an edge.
+        var dx = sel.x < 10 ? 17 : 8;
+        var dy = sel.y > ih - 12 ? -17 : (sel.y < 16 ? 13 : -7);
+        lab.attr('x', sel.x + (flipX ? -dx : dx))
+          .attr('y', sel.y + dy)
+          .attr('text-anchor', flipX ? 'end' : 'start')
+          .style('display', '')
+          .text(byId[state.proj].name);
+      } else {
+        lab.style('display', 'none');
+      }
+    }
+
+    // ---- Family / projection UI --------------------------------------------
+    var elFamilyLabel = document.getElementById('family-label');
+    var elFamilyMark = document.getElementById('family-mark');
+    var elFamilyPreserves = document.getElementById('family-preserves');
+    var elBlurb = document.getElementById('proj-blurb');
+
+    function buildSelect() {
+      var sel = document.getElementById('proj-select');
+      var order = ['conformal', 'equalarea', 'equidistant', 'compromise', 'other'];
+      order.forEach(function (fam) {
+        var group = document.createElement('optgroup');
+        group.label = FAMILIES[fam].label;
+        PROJECTIONS.filter(function (p) { return p.family === fam; }).forEach(function (p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          group.appendChild(opt);
+        });
+        sel.appendChild(group);
+      });
+      sel.value = state.proj;
+      sel.addEventListener('change', function () { setProjection(sel.value); });
+    }
+
+    function updateFamilyCard() {
+      var def = byId[state.proj];
+      var fam = FAMILIES[def.family];
+      elFamilyLabel.textContent = fam.label;
+      elFamilyMark.innerHTML = '<svg width="10" height="10" viewBox="-5 -5 10 10">' +
+        '<path d="' + markPath(fam.shape, 3.4) + '" fill="#94a3b8"/></svg>';
+      elFamilyPreserves.innerHTML = fam.preserves;
+      elBlurb.textContent = def.blurb;
+    }
+
+    // ---- Render pipeline ----------------------------------------------------
+    var busyEl = document.getElementById('busy');
+    var fineTimer = null;
+
+    function rebuild(quality) {
+      projection = buildProjection();
+      path = d3.geoPath(projection, ctx2d);
+      hitPath.projection(projection);
+      fieldStep = quality || FIELD_FINE;
+      renderField(fieldStep);
+      draw();
+      updateReadout();
+      scheduleFine();
+    }
+
+    function scheduleFine() {
+      if (fieldStep === FIELD_FINE || state.field === 'none') return;
+      clearTimeout(fineTimer);
+      fineTimer = setTimeout(function () {
+        busyEl.style.display = 'block';
+        requestAnimationFrame(function () {
+          renderField(FIELD_FINE);
+          fieldStep = FIELD_FINE;
+          draw();
+          busyEl.style.display = 'none';
+        });
+      }, 140);
+    }
+
+    function resize() {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      width = window.innerWidth;
+      height = window.innerHeight;
+      FIELD_FINE = width * height > 1.6e6 ? 4 : 3;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      measureClearance();
+      rebuild(FIELD_FAST);
+    }
+
+    function setProjection(id) {
+      if (!byId[id]) return;
+      state.proj = id;
+      document.getElementById('proj-select').value = id;
+      updateFamilyCard();
+      updateScatter();
+      rebuild(FIELD_FAST);
+      syncHash();
+    }
+
+    function setField(f) {
+      state.field = f;
+      var radios = document.getElementsByName('field');
+      for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === f);
+      updateLegend();
+      rebuild(FIELD_FAST);
+      syncHash();
+    }
+
+    // ---- Interaction --------------------------------------------------------
+    var dragging = false;
+
+    function pointerToProbe(evt) {
+      var rect = canvas.getBoundingClientRect();
+      var px = evt.clientX - rect.left, py = evt.clientY - rect.top;
+      if (!projection.invert) return false;
+      var ll = projection.invert([px, py]);
+      if (!ll || !isFinite(ll[0]) || !isFinite(ll[1])) return false;
+      var back = projection(ll);
+      if (!back || Math.abs(back[0] - px) > 1 || Math.abs(back[1] - py) > 1) return false;
+      if (!visible(ll[0], ll[1])) return false;
+      state.probe = [ll[0], ll[1]];
+      return true;
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      if (!pointerToProbe(e)) return;
+      dragging = true;
+      canvas.classList.add('dragging');
+      canvas.setPointerCapture(e.pointerId);
+      if (state.field === 'distance') { renderField(FIELD_FAST); fieldStep = FIELD_FAST; }
+      draw();
+      updateReadout();
+      updateTourFigure();
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      if (!pointerToProbe(e)) return;
+      if (state.field === 'distance') { renderField(FIELD_FAST); fieldStep = FIELD_FAST; }
+      draw();
+      updateReadout();
+      updateTourFigure();
+    });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      canvas.classList.remove('dragging');
+      if (state.field === 'distance') scheduleFine();
+      syncHash();
+    }
+
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    var elHeaderBody = document.getElementById('header-body');
+    var elHeaderToggle = document.getElementById('toggle-header');
+
+    elHeaderToggle.addEventListener('click', function () {
+      // Reopening by hand during the tour should stick.
+      document.body.classList.remove('touring');
+      elHeaderBody.classList.toggle('collapsed');
+      headerWasOpen = !elHeaderBody.classList.contains('collapsed');
+      this.innerHTML = elHeaderBody.classList.contains('collapsed') ? '+' : '&minus;';
+    });
+
+    var radios = document.getElementsByName('field');
+    for (var ri = 0; ri < radios.length; ri++) {
+      radios[ri].addEventListener('change', function () { if (this.checked) setField(this.value); });
+    }
+
+    document.getElementById('ck-tissot').addEventListener('change', function () {
+      state.tissot = this.checked; draw();
+    });
+    document.getElementById('ck-graticule').addEventListener('change', function () {
+      state.graticule = this.checked; draw();
+    });
+    document.getElementById('ck-probe').addEventListener('change', function () {
+      state.probeOn = this.checked; draw();
+    });
+
+    var elRotLon = document.getElementById('rot-lon');
+    var elRotLat = document.getElementById('rot-lat');
+    var elOutLon = document.getElementById('out-lon');
+    var elOutLat = document.getElementById('out-lat');
+
+    function onRotate() {
+      state.rotLon = +elRotLon.value;
+      state.rotLat = +elRotLat.value;
+      elOutLon.textContent = state.rotLon + '°';
+      elOutLat.textContent = state.rotLat + '°';
+      rebuild(FIELD_FAST);
+    }
+
+    elRotLon.addEventListener('input', onRotate);
+    elRotLat.addEventListener('input', onRotate);
+    elRotLon.addEventListener('change', syncHash);
+    elRotLat.addEventListener('change', syncHash);
+
+    document.getElementById('reset-btn').addEventListener('click', function () {
+      elRotLon.value = 0; elRotLat.value = 0; onRotate(); syncHash();
+    });
+
+    window.addEventListener('resize', function () {
+      clearTimeout(window.__rsz);
+      window.__rsz = setTimeout(resize, 120);
+    });
+
+    // ---- URL hash -----------------------------------------------------------
+    function syncHash() {
+      var h = 'p=' + state.proj + '&f=' + state.field +
+        '&lon=' + state.probe[0].toFixed(2) + '&lat=' + state.probe[1].toFixed(2);
+      if (state.rotLon || state.rotLat) h += '&rlon=' + state.rotLon + '&rlat=' + state.rotLat;
+      history.replaceState(null, '', '#' + h);
+    }
+
+    function readHash() {
+      var params = {};
+      window.location.hash.substring(1).split('&').forEach(function (part) {
+        var kv = part.split('=');
+        if (kv[0] && kv[1] !== undefined) params[kv[0]] = kv[1];
+      });
+      if (params.p && byId[params.p]) state.proj = params.p;
+      if (params.f && ['area', 'angle', 'distance', 'none'].indexOf(params.f) >= 0) state.field = params.f;
+      var lon = parseFloat(params.lon), lat = parseFloat(params.lat);
+      if (isFinite(lon) && isFinite(lat) && Math.abs(lat) <= 90) state.probe = [lon, lat];
+      var rlon = parseFloat(params.rlon), rlat = parseFloat(params.rlat);
+      if (isFinite(rlon)) state.rotLon = Math.max(-180, Math.min(180, rlon));
+      if (isFinite(rlat)) state.rotLat = Math.max(-90, Math.min(90, rlat));
+    }
+
+    // ---- Tour ---------------------------------------------------------------
+    var TOUR = [
+      {
+        proj: 'mercator', field: 'none', probe: [-42, 72], rot: [0, 0],
+        tissot: true, probeOn: true,
+        title: 'You cannot flatten a sphere',
+        body: 'A sphere has curvature; a sheet of paper does not. Gauss proved in 1827 that no ' +
+              'map from one to the other can keep every distance, which means every projection ever ' +
+              'made distorts something. The only real question is what, and where. The grey ellipses ' +
+              'are Tissot indicatrices: each one is a tiny circle drawn on the actual globe, redrawn ' +
+              'as the map draws it. On a perfect map they would all be identical circles.'
+      },
+      {
+        proj: 'mercator', field: 'area', probe: [-42, 72], rot: [0, 0],
+        title: 'The area field',
+        body: 'This is Mercator, shaded by how wrong its areas are. Near the equator the shading ' +
+              'vanishes because the scale is honest there. Toward the poles it goes red and keeps ' +
+              'going. The probe sits on Greenland, where the readout at the bottom says the map ' +
+              'draws it about 10 times its true area. Drag the probe down to the equator and watch ' +
+              'that number fall to 1.00.'
+      },
+      {
+        proj: 'mercator', field: 'angle', probe: [-42, 72], rot: [0, 0],
+        figure: 'angle',
+        title: 'Conformal: the angle field goes dark',
+        body: 'Same projection, now shaded by angular error ω: the worst the map bends any angle ' +
+              'at that point. Mercator bends none of them. The map goes black, the readout reads ' +
+              '0.00° wherever you drag the probe, and shapes keep their form at every scale.'
+      },
+      {
+        proj: 'equalearth', field: 'area', probe: [-42, 72], rot: [0, 0],
+        title: 'Equal-area: the other field goes dark',
+        body: 'Equal Earth is equal-area, and its area field is blank: 1.00× at the probe, ' +
+              '1.00× everywhere, exactly. Greenland is suddenly the size it really is, next to ' +
+              'an Africa fourteen times larger. Notice the Tissot ellipses are no longer circles, ' +
+              'but every one of them encloses the same amount of ink.'
+      },
+      {
+        proj: 'equalearth', field: 'angle', probe: [-42, 72], rot: [0, 0],
+        figure: 'angle',
+        title: 'And here is what it cost',
+        body: 'The same projection on the angle field, and it lights up. Every equal-area map pays ' +
+              'this bill somewhere; the only choice a designer has is where to put the damage. ' +
+              'Drag the probe and watch the corner below bend with it.'
+      },
+      {
+        proj: 'azeqd', field: 'distance', probe: [-122, 48], rot: [-122, 48],
+        title: 'Equidistant: true, but only from one place',
+        body: 'The projection and the probe are both centered on Seattle. The shading asks, at every ' +
+              'pixel: lay a straight ruler on the map from the probe to here, how far off is the ' +
+              'answer? Nothing is shaded, because distance from that center is exact, and the center ' +
+              'is the one you set with the sliders. Drag the probe away and the field lights up: ' +
+              'equidistant means distances from one point, never all of them.'
+      },
+      {
+        proj: 'winkel3', field: 'area', probe: [-42, 72], rot: [0, 0],
+        title: 'Compromise: a bit wrong everywhere, on purpose',
+        body: 'Winkel Tripel is the projection on the National Geographic world map. It is not ' +
+              'conformal and not equal-area, so neither field ever goes black. In exchange, neither ' +
+              'field ever goes bright either: at the probe Greenland comes out about 70% too large ' +
+              'instead of 950%, and angles bend by 33° instead of Equal Earth\'s 67°. That is the ' +
+              'entire design philosophy of a compromise projection.'
+      },
+      {
+        proj: 'winkel3', field: 'area', probe: [-42, 72], rot: [0, 0],
+        highlight: 'tradeoff',
+        title: 'One or the other, never both',
+        body: 'The trade-off chart, glowing at the lower left, plots every projection here by its ' +
+              'average angle error and its typical area error. Conformal projections pin themselves ' +
+              'to the left edge. Equal-area projections pin themselves to the bottom edge. ' +
+              'Compromises float in the middle, and the corner where both errors are zero stays ' +
+              'permanently empty. That empty corner is Gauss’s theorem, drawn as a picture. ' +
+              'Click any point in the chart to load that projection.'
+      }
+    ];
+
+
+    // ---- Tour figure: what angular error looks like -------------------------
+    // Tissot's ellipse says a tiny circle at the probe is drawn as an ellipse with
+    // semi-axes a >= b. The pair of directions that suffers the largest angle error
+    // sits symmetrically about the major axis at +/- theta, where sin(theta) =
+    // 1/sqrt(1 + b/a); on the map that pair closes up to +/- atan((b/a)tan theta),
+    // and the difference between the two full angles is exactly omega.
+    function angleFigureSVG() {
+      var lon = state.probe[0], lat = state.probe[1];
+      if (!visible(lon, lat)) return '';
+      var d = distortionAt(projection, lon, lat);
+      if (!d || !(d.a > 0) || !(d.b > 0)) return '';
+
+      var k = d.b / d.a;
+      var theta = Math.asin(Math.min(1, 1 / Math.sqrt(1 + k)));
+      var thetaP = Math.atan2(k * Math.sin(theta), Math.cos(theta));
+      var trueAng = 2 * theta / RAD;
+      var mapAng = 2 * thetaP / RAD;
+      var delta = trueAng - mapAng;
+
+      var R = 30, AR = 11;
+      var cosT = Math.cos(theta), sinT = Math.sin(theta);
+
+      function wedge(cx, half) {
+        var x = (AR * Math.cos(half)).toFixed(2);
+        var y = (AR * Math.sin(half)).toFixed(2);
+        return '<path d="M0,0 L' + x + ',' + y + ' A' + AR + ',' + AR + ' 0 0 0 ' + x + ',' + (-y) +
+               ' Z" fill="rgba(96,165,250,0.22)" stroke="#60a5fa" stroke-width="1"/>';
+      }
+
+      function rays(ex, ey) {
+        return '<line x1="0" y1="0" x2="' + ex.toFixed(2) + '" y2="' + ey.toFixed(2) + '" ' +
+               'stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"/>' +
+               '<line x1="0" y1="0" x2="' + ex.toFixed(2) + '" y2="' + (-ey).toFixed(2) + '" ' +
+               'stroke="#93c5fd" stroke-width="1.6" stroke-linecap="round"/>';
+      }
+
+      // Both panels are the same object at the same scale, so they get the same
+      // styling: any difference the reader sees is a difference the map made.
+      var shape = 'fill="rgba(226,232,240,0.10)" stroke="rgba(226,232,240,0.75)" stroke-width="1.2"';
+
+      var globe = '<g transform="translate(76,44)">' +
+        '<circle r="' + R + '" ' + shape + '/>' +
+        wedge(0, theta) + rays(R * cosT, R * sinT) + '</g>';
+
+      var map = '<g transform="translate(240,44)">' +
+        '<ellipse rx="' + R + '" ry="' + (R * k).toFixed(2) + '" ' + shape + '/>' +
+        wedge(0, thetaP) + rays(R * cosT, R * k * sinT) + '</g>';
+
+      var cap = 'font-size="9.5" fill="#64748b" text-anchor="middle"';
+      var val = 'font-size="12" font-weight="700" fill="#cbd5e1" text-anchor="middle"';
+      // Quote the difference of the two rounded angles so the figure's own
+      // arithmetic always adds up for a reader checking it.
+      var shownTrue = Math.round(trueAng), shownMap = Math.round(mapAng);
+      var shownDelta = shownTrue - shownMap;
+      var deltaLabel = delta < 0.05 ? 'unchanged'
+        : (shownDelta < 1 ? 'off by &lt;1\u00b0' : 'off by ' + shownDelta + '\u00b0');
+      var deltaText = '<text x="158" y="99" font-size="10" font-weight="600" fill="' +
+        (delta < 0.05 ? '#4ade80' : '#ee8143') + '" text-anchor="middle">' + deltaLabel + '</text>';
+
+      return '<svg viewBox="0 0 316 108" role="img" aria-label="A pair of directions on the globe ' +
+        'and the same pair as the map draws them">' +
+        globe + map +
+        '<text x="158" y="48" font-size="15" fill="#64748b" text-anchor="middle">\u2192</text>' +
+        deltaText +
+        '<text x="76" y="88" ' + cap + '>on the globe</text>' +
+        '<text x="240" y="88" ' + cap + '>on the map</text>' +
+        '<text x="76" y="103" ' + val + '>' + shownTrue + '\u00b0</text>' +
+        '<text x="240" y="103" ' + val + '>' + shownMap + '\u00b0</text>' +
+        '</svg>';
+    }
+
+    function updateTourFigure() {
+      if (!elTourFigure) return;
+      var step = TOUR[tourStep];
+      elTourFigure.innerHTML = (tourActive && step && step.figure === 'angle') ? angleFigureSVG() : '';
+    }
+
+    var tourStep = 0, tourActive = false;
+    var elTourPopup = document.getElementById('tour-popup');
+    var elTourStep = document.getElementById('tour-step');
+    var elTourTitle = document.getElementById('tour-title');
+    var elTourBody = document.getElementById('tour-body');
+    var elTourPrev = document.getElementById('tour-prev');
+    var elTourNext = document.getElementById('tour-next');
+    var elTourEnd = document.getElementById('tour-end');
+    var elTourBtn = document.getElementById('tour-btn');
+    var elTourFigure = document.getElementById('tour-figure');
+
+    function showTourStop(i) {
+      tourStep = i;
+      var s = TOUR[i];
+      elTourStep.textContent = 'Step ' + (i + 1) + ' of ' + TOUR.length;
+      elTourTitle.textContent = s.title;
+      elTourBody.textContent = s.body;
+      elTourBody.scrollTop = 0;
+      clearHighlight();
+      if (s.highlight) {
+        var target = document.getElementById(s.highlight);
+        if (target) target.classList.add('highlight');
+      }
+      elTourPrev.style.display = i === 0 ? 'none' : '';
+      elTourNext.style.display = i === TOUR.length - 1 ? 'none' : '';
+      elTourEnd.textContent = i === TOUR.length - 1 ? 'Finish' : 'End Tour';
+      elTourPopup.style.display = '';
+
+      if (s.probe) state.probe = s.probe.slice();
+      if (s.rot) {
+        state.rotLon = s.rot[0]; state.rotLat = s.rot[1];
+        elRotLon.value = state.rotLon; elRotLat.value = state.rotLat;
+        elOutLon.textContent = state.rotLon + '°';
+        elOutLat.textContent = state.rotLat + '°';
+      }
+      if (s.tissot !== undefined) {
+        state.tissot = s.tissot;
+        document.getElementById('ck-tissot').checked = s.tissot;
+      }
+      state.proj = s.proj;
+      document.getElementById('proj-select').value = s.proj;
+      state.field = s.field;
+      var rs = document.getElementsByName('field');
+      for (var k = 0; k < rs.length; k++) rs[k].checked = (rs[k].value === s.field);
+
+      updateFamilyCard();
+      updateLegend();
+      updateScatter();
+      rebuild(FIELD_FAST);
+      updateTourFigure();
+      syncHash();
+    }
+
+    var headerWasOpen = false;
+
+    function clearHighlight() {
+      var lit = document.querySelectorAll('.panel.highlight');
+      for (var i = 0; i < lit.length; i++) lit[i].classList.remove('highlight');
+    }
+
+    function startTour() {
+      tourActive = true;
+      headerWasOpen = !elHeaderBody.classList.contains('collapsed');
+      document.body.classList.add('touring');
+      elHeaderToggle.innerHTML = '+';
+      elTourBtn.style.display = 'none';
+      showTourStop(0);
+    }
+
+    function endTour() {
+      tourActive = false;
+      clearHighlight();
+      document.body.classList.remove('touring');
+      if (headerWasOpen) {
+        elHeaderBody.classList.remove('collapsed');
+        elHeaderToggle.innerHTML = '\u2212';
+      }
+      elTourPopup.style.display = 'none';
+      elTourBtn.style.display = '';
+      elTourBody.scrollTop = 0;
+      elTourFigure.innerHTML = '';
+    }
+
+    elTourBtn.addEventListener('click', startTour);
+    elTourPrev.addEventListener('click', function () { if (tourStep > 0) showTourStop(tourStep - 1); });
+    elTourNext.addEventListener('click', function () { if (tourStep < TOUR.length - 1) showTourStop(tourStep + 1); });
+    elTourEnd.addEventListener('click', endTour);
+
+    document.addEventListener('keydown', function (e) {
+      if (!tourActive) return;
+      if (e.key === 'ArrowRight' && tourStep < TOUR.length - 1) showTourStop(tourStep + 1);
+      else if (e.key === 'ArrowLeft' && tourStep > 0) showTourStop(tourStep - 1);
+      else if (e.key === 'Escape') endTour();
+    });
+
+    // ---- Boot ---------------------------------------------------------------
+    // On a phone the intro would eat a third of the map, so it starts folded away.
+    if (window.innerWidth <= 720) {
+      document.getElementById('header-body').classList.add('collapsed');
+      document.getElementById('toggle-header').innerHTML = '+';
+    }
+
+    readHash();
+    buildSelect();
+    document.getElementById('proj-select').value = state.proj;
+    elRotLon.value = state.rotLon;
+    elRotLat.value = state.rotLat;
+    elOutLon.textContent = state.rotLon + '°';
+    elOutLat.textContent = state.rotLat + '°';
+    var fieldRadios = document.getElementsByName('field');
+    for (var fi = 0; fi < fieldRadios.length; fi++) {
+      fieldRadios[fi].checked = (fieldRadios[fi].value === state.field);
+    }
+    updateFamilyCard();
+    updateLegend();
+    computeStats();
+    buildScatter();
+    updateScatter();
+    resize();
+
+    d3.json('https://unpkg.com/world-atlas@2/countries-110m.json').then(function (topo) {
+      // Coastlines as a line mesh rather than merged polygons: an interrupted
+      // projection tears a polygon that spans a lobe boundary (Antarctica most of
+      // all) and smears it across the map, while lines clip cleanly.
+      land = topojson.mesh(topo, topo.objects.countries, function (a, b) { return a === b; });
+      borders = topojson.mesh(topo, topo.objects.countries, function (a, b) { return a !== b; });
+      draw();
+    }).catch(function () {
+      // Coastlines are decoration: the distortion fields stand on their own without them.
+    });
+  })();
+  </script>
+</body>
+</html>
