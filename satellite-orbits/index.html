@@ -512,8 +512,8 @@
     </div>
 
     <div class="attribution">
-      &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>
+      Basemap &copy; <a href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" rel="noopener">Esri</a>,
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors
     </div>
   </div>
 
@@ -1024,18 +1024,16 @@
       style: {
         version: 8,
         sources: {
-          carto: {
+          basemap: {
             type: 'raster',
             tiles: [
-              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
             ],
             tileSize: 256,
-            maxzoom: 19
+            maxzoom: 16
           }
         },
-        layers: [{ id: 'basemap', type: 'raster', source: 'carto' }],
+        layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
       },
       center: [0, 20],

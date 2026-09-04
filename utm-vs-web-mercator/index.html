@@ -479,8 +479,8 @@
     </div>
 
     <div class="attribution">
-      &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>
+      Basemap &copy; <a href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" rel="noopener">Esri</a>,
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors
     </div>
   </div>
 
@@ -509,18 +509,29 @@
       style: {
         version: 8,
         sources: {
-          carto: {
+          basemap: {
             type: 'raster',
             tiles: [
-              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
+              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
             ],
             tileSize: 256,
             maxzoom: 19
           }
         },
-        layers: [{ id: 'basemap', type: 'raster', source: 'carto' }],
+        layers: [
+          // White underlay so the basemap can be faded back, keeping the
+          // red/blue grid overlays the most saturated thing on screen.
+          { id: 'basemap-underlay', type: 'background', paint: { 'background-color': '#ffffff' } },
+          {
+            id: 'basemap',
+            type: 'raster',
+            source: 'basemap',
+            paint: {
+              'raster-opacity': 0.62,
+              'raster-saturation': -0.2
+            }
+          }
+        ],
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
       },
       center: initCenter,
