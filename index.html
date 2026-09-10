@@ -72,13 +72,28 @@
       gap: 2.5rem;
       align-items: flex-start;
     }
+    .hero picture { display: contents; }
     .hero-photo {
+      position: relative;
       width: 160px;
       height: 160px;
       border-radius: 50%;
-      object-fit: cover;
       flex-shrink: 0;
       background: var(--border);
+    }
+    .hero-photo img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .hero-photo-alt { opacity: 0; transition: opacity 0.35s ease; }
+    .hero-photo:hover .hero-photo-alt,
+    .hero-photo:active .hero-photo-alt { opacity: 1; }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-photo-alt { transition: none; }
     }
     .hero-text h1 {
       font-size: 2rem;
@@ -270,7 +285,16 @@
 <main class="container">
 
   <div class="hero">
-    <img class="hero-photo" src="img/photo.jpg" alt="Patrick Johnson">
+    <div class="hero-photo">
+      <picture>
+        <source type="image/webp" srcset="img/headshot-320.webp 320w, img/headshot-480.webp 480w" sizes="(max-width: 640px) 120px, 160px">
+        <img src="img/headshot-480.jpg" srcset="img/headshot-320.jpg 320w, img/headshot-480.jpg 480w" sizes="(max-width: 640px) 120px, 160px" width="480" height="480" alt="Patrick Johnson">
+      </picture>
+      <picture>
+        <source type="image/webp" srcset="img/ski-320.webp 320w, img/ski-480.webp 480w" sizes="(max-width: 640px) 120px, 160px">
+        <img class="hero-photo-alt" src="img/ski-480.jpg" srcset="img/ski-320.jpg 320w, img/ski-480.jpg 480w" sizes="(max-width: 640px) 120px, 160px" width="480" height="480" alt="" aria-hidden="true">
+      </picture>
+    </div>
     <div class="hero-text">
       <h1>Patrick Johnson</h1>
       <p class="subtitle">Lead Software Engineer at <a href="https://allenai.org" target="_blank" rel="noopener">Allen Institute for AI</a></p>
