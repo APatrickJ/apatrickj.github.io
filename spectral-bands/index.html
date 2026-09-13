@@ -1,0 +1,2762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Spectrum Satellites See</title>
+<meta name="description" content="An interactive, zoomable map of the electromagnetic spectrum used by Earth-observing satellites: every Sentinel-2, Landsat, Sentinel-1 and NISAR band drawn to scale, with surface reflectance curves, atmospheric windows, and what each wavelength can see through.">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --bg:#0b1220;
+  --panel:rgba(15,23,42,.88);
+  --panel2:rgba(2,6,23,.45);
+  --line:rgba(100,116,139,.25);
+  --t1:#f8fafc;
+  --t2:#e2e8f0;
+  --t3:#94a3b8;
+  --t4:#64748b;
+  --accent:#60a5fa;
+  --mono:'SF Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace;
+}
+
+html,body{height:100%}
+
+body{
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);
+  color:var(--t2);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+#app{display:flex;height:100vh;height:100dvh}
+
+/* ---------- Sidebar ---------- */
+#sidebar{
+  width:340px;flex:0 0 340px;
+  background:rgba(15,23,42,.6);
+  border-right:1px solid var(--line);
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  padding:14px 16px 30px;
+}
+#sidebar.hidden{display:none}
+
+.side-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.back-link{font-size:11.5px;color:var(--t4);text-decoration:none;letter-spacing:.01em}
+.back-link:hover{color:var(--accent)}
+.icon-btn{
+  background:none;border:none;color:var(--t4);font-size:17px;line-height:1;
+  cursor:pointer;padding:2px 4px;border-radius:5px;
+}
+.icon-btn:hover{color:var(--t2);background:rgba(100,116,139,.2)}
+
+h1{font-size:19px;font-weight:700;color:var(--t1);letter-spacing:-.015em;line-height:1.25}
+.lede{font-size:12.5px;color:var(--t3);line-height:1.62;margin-top:8px}
+.lede b{color:#cbd5e1;font-weight:600}
+
+details.note{margin-top:11px;border-top:1px solid rgba(100,116,139,.2);padding-top:9px}
+details.note summary{font-size:11.5px;font-weight:600;color:var(--t3);cursor:pointer;user-select:none;list-style:none}
+details.note summary::-webkit-details-marker{display:none}
+details.note summary::before{content:'▸ ';color:var(--t4)}
+details.note[open] summary::before{content:'▾ '}
+details.note summary:hover{color:#cbd5e1}
+details.note ul{margin:8px 0 0 0;padding-left:15px}
+details.note li,details.note p{font-size:11.5px;color:var(--t3);line-height:1.6;margin-bottom:5px}
+
+.sect{margin-top:16px;border-top:1px solid rgba(100,116,139,.18);padding-top:12px}
+.sect-label{
+  font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--t4);display:block;margin-bottom:7px;
+}
+
+.chip-wrap{display:flex;flex-wrap:wrap;gap:5px}
+.chip{
+  background:rgba(2,6,23,.55);border:1px solid rgba(100,116,139,.28);
+  color:var(--t3);border-radius:999px;padding:4px 9px;font-size:11px;
+  cursor:pointer;font-family:inherit;transition:all .13s;
+}
+.chip:hover{border-color:rgba(96,165,250,.5);color:#cbd5e1}
+.chip.on{background:rgba(96,165,250,.18);border-color:rgba(96,165,250,.45);color:#bfdbfe}
+
+.rowlist{display:flex;flex-direction:column;gap:2px}
+.rowlist label{
+  display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t3);
+  cursor:pointer;user-select:none;padding:2px 0;
+}
+.rowlist label:hover{color:#cbd5e1}
+.rowlist input{accent-color:var(--accent);margin:0;flex-shrink:0}
+.sw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.sub{font-size:10px;color:var(--t4);margin-left:auto;font-family:var(--mono)}
+
+select{
+  width:100%;background:rgba(2,6,23,.6);color:var(--t2);
+  border:1px solid rgba(100,116,139,.3);border-radius:6px;
+  padding:6px 8px;font-size:12.5px;font-family:inherit;cursor:pointer;
+}
+select:focus{outline:none;border-color:rgba(96,165,250,.6)}
+select option{background:#0f172a;color:var(--t2)}
+
+#index-note{font-size:11.5px;color:var(--t3);line-height:1.6;margin-top:9px}
+.iv-formula{
+  display:block;font-family:var(--mono);font-size:11px;color:#bfdbfe;
+  background:rgba(2,6,23,.55);border:1px solid rgba(100,116,139,.22);
+  border-radius:5px;padding:6px 9px;margin:0 0 8px;letter-spacing:.02em;
+}
+#index-vals{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.iv-row{display:grid;grid-template-columns:98px 1fr 34px;align-items:center;gap:8px;font-size:11px;color:var(--t3);line-height:1.4}
+.iv-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iv-track{height:8px;background:rgba(2,6,23,.6);border-radius:4px;position:relative;overflow:hidden}
+.iv-track::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(100,116,139,.45)}
+.iv-fill{position:absolute;top:0;bottom:0;border-radius:3px}
+.iv-num{font-family:var(--mono);font-size:10.5px;text-align:right;color:#cbd5e1}
+
+.btn-row{display:flex;gap:6px;margin-top:12px}
+.btn{
+  border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .15s;
+}
+.btn-primary{background:rgba(96,165,250,.15);color:#93c5fd;border:1px solid rgba(96,165,250,.3)}
+.btn-primary:hover{background:rgba(96,165,250,.26);border-color:rgba(96,165,250,.5)}
+.btn-ghost{background:rgba(100,116,139,.18);color:var(--t3);border:1px solid rgba(100,116,139,.28)}
+.btn-ghost:hover{background:rgba(100,116,139,.32);color:#cbd5e1}
+.btn:disabled{opacity:.38;cursor:default}
+.btn:disabled:hover{background:rgba(100,116,139,.18);color:var(--t3)}
+
+.fineprint{font-size:10.5px;color:var(--t4);line-height:1.6;margin-top:18px;border-top:1px solid rgba(100,116,139,.18);padding-top:10px}
+
+/* ---------- Stage ---------- */
+#stage{flex:1;min-width:0;display:flex;flex-direction:column}
+
+#toolbar{
+  flex:0 0 auto;display:flex;align-items:center;
+  padding:8px 18px 8px 104px;border-bottom:1px solid var(--line);
+  background:rgba(15,23,42,.55);
+  position:relative;z-index:20;
+}
+.tb-reset{
+  position:absolute;top:50%;left:8px;transform:translateY(-50%);
+  padding:4px 7px;border-radius:6px;
+  background:rgba(2,6,23,.6);border:1px solid rgba(100,116,139,.38);
+  color:var(--t3);font-size:10px;font-weight:600;line-height:1.2;
+  font-family:inherit;cursor:pointer;white-space:nowrap;transition:all .13s;
+}
+.tb-reset:hover:not(:disabled){border-color:rgba(147,197,253,.8);color:#e2e8f0;background:rgba(37,99,235,.4)}
+.tb-reset:disabled{opacity:.3;cursor:default}
+.tb-reset::after{
+  content:attr(data-tip);
+  position:absolute;top:calc(100% + 9px);left:-2px;
+  background:rgba(2,6,23,.97);border:1px solid rgba(100,116,139,.45);
+  color:var(--t2);font-size:11px;font-weight:500;font-family:inherit;
+  padding:5px 9px;border-radius:6px;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .12s .04s;
+  box-shadow:0 6px 18px rgba(0,0,0,.5);
+}
+.tb-reset:hover:not(:disabled)::after,
+.tb-reset:focus-visible:not(:disabled)::after{opacity:1}
+#overview{
+  flex:1 1 auto;min-width:60px;height:18px;position:relative;
+  border-radius:4px;overflow:hidden;cursor:pointer;
+  border:1px solid rgba(100,116,139,.3);
+}
+#overview::after{content:'';position:absolute;inset:0;background:rgba(11,18,32,.45)}
+#ov-win{
+  position:absolute;top:0;bottom:0;z-index:2;min-width:2px;
+  border-left:1.5px solid #93c5fd;border-right:1.5px solid #93c5fd;
+  background:rgba(147,197,253,.3);
+}
+#chart-wrap{flex:1;position:relative;min-height:0}
+#chart{position:absolute;inset:0;display:block;cursor:crosshair;touch-action:none}
+#chart.dragging{cursor:grabbing}
+
+#sidebar-open{
+  position:absolute;top:10px;left:10px;z-index:6;display:none;
+  background:var(--panel);border:1px solid var(--line);color:var(--t3);
+  border-radius:7px;padding:5px 9px;font-size:14px;cursor:pointer;
+}
+#sidebar-open.show{display:block}
+
+#hint{
+  position:absolute;bottom:66px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--line);border-radius:999px;
+  padding:5px 13px;font-size:11px;color:var(--t3);pointer-events:none;
+  z-index:5;transition:opacity .4s;backdrop-filter:blur(8px);
+}
+#hint.gone{opacity:0}
+
+#tooltip{
+  position:absolute;z-index:8;pointer-events:none;display:none;
+  background:rgba(2,6,23,.94);border:1px solid rgba(100,116,139,.4);
+  border-radius:8px;padding:8px 10px;max-width:270px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);backdrop-filter:blur(6px);
+}
+#tooltip .tt-title{font-size:12px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:6px}
+#tooltip .tt-mission{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+#tooltip .tt-line{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.5}
+#tooltip .tt-line b{color:#cbd5e1;font-weight:600}
+#tooltip .tt-mono{font-family:var(--mono);font-size:10.5px;color:#cbd5e1}
+#tooltip .tt-use{font-size:11px;color:var(--t3);margin-top:6px;padding-top:6px;border-top:1px solid rgba(100,116,139,.25);line-height:1.5}
+
+/* ---------- Tour ---------- */
+#tour-popup{
+  position:absolute;z-index:9;display:none;
+  top:16px;left:50%;transform:translateX(-50%);
+  width:min(440px,calc(100% - 32px));
+  background:var(--panel);border:1px solid rgba(96,165,250,.3);
+  border-radius:10px;padding:14px 16px;backdrop-filter:blur(12px);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+#tour-popup .step{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.7px;font-weight:700}
+#tour-popup h2{font-size:15px;color:var(--t1);margin:3px 0 6px;font-weight:700}
+#tour-popup p{font-size:12.5px;color:var(--t3);line-height:1.62}
+.tour-nav{display:flex;gap:6px;margin-top:12px}
+.tour-nav button{
+  border-radius:6px;padding:5px 12px;font-size:11.5px;font-weight:600;cursor:pointer;
+  font-family:inherit;background:rgba(100,116,139,.2);color:var(--t3);
+  border:1px solid rgba(100,116,139,.28);
+}
+.tour-nav button:hover{background:rgba(100,116,139,.35)}
+.tour-nav .primary{background:rgba(96,165,250,.2);color:#93c5fd;border-color:rgba(96,165,250,.35)}
+.tour-nav .primary:hover{background:rgba(96,165,250,.34)}
+.tour-nav .end{margin-left:auto}
+
+/* ---------- Probe bar ---------- */
+#probebar{
+  flex:0 0 auto;height:224px;
+  border-top:1px solid var(--line);
+  background:rgba(15,23,42,.6);
+  display:flex;gap:0;align-items:stretch;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+}
+.pb-cell{flex:0 1 auto;padding:10px 14px;border-right:1px solid rgba(100,116,139,.16);min-width:0}
+.pb-cell:last-child{border-right:none}
+.pb-label{
+  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--t4);margin-bottom:6px;
+}
+#pb-wave{flex:0 1 176px;min-width:156px}
+.pb-big{font-family:var(--mono);font-size:23px;color:var(--t1);line-height:1.1;font-weight:600}
+.pb-sub{font-family:var(--mono);font-size:10.5px;color:var(--t3);margin-top:3px;white-space:nowrap}
+.region-chip{
+  display:inline-block;margin-top:7px;font-size:10.5px;font-weight:700;
+  padding:2px 8px;border-radius:999px;border:1px solid;
+}
+#pb-role{font-size:10.5px;color:var(--t4);line-height:1.5;margin-top:6px}
+
+#pb-atmos{flex:0 1 158px;min-width:118px}
+.bar-track{height:9px;background:rgba(2,6,23,.65);border-radius:5px;overflow:hidden;margin-top:2px}
+.bar-fill{height:100%;border-radius:5px;transition:width .1s linear}
+.pb-stat{font-family:var(--mono);font-size:17px;color:var(--t1);line-height:1.2}
+.pb-note{font-size:10.5px;color:var(--t3);line-height:1.5;margin-top:7px}
+.pb-note + .pb-note{margin-top:5px}
+.pb-note b{color:#cbd5e1;font-weight:600}
+
+#pb-surf{flex:0 1 178px;min-width:136px}
+.surf-row{display:grid;grid-template-columns:60px 1fr 32px;align-items:center;gap:6px;margin-bottom:3px}
+.surf-name{font-size:10.5px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.surf-track{height:7px;background:rgba(2,6,23,.65);border-radius:4px;overflow:hidden}
+.surf-fill{height:100%;border-radius:4px}
+.surf-val{font-family:var(--mono);font-size:10px;color:#cbd5e1;text-align:right}
+
+#pb-bands{flex:1 1 148px;min-width:112px}
+.bandchips{display:flex;flex-wrap:wrap;gap:4px;max-height:168px;overflow-y:auto;scrollbar-width:thin}
+.bandchip{
+  font-size:10.5px;padding:2px 7px;border-radius:5px;
+  border:1px solid rgba(100,116,139,.3);background:rgba(2,6,23,.5);color:var(--t3);
+  white-space:normal;max-width:100%;
+}
+.bandchip b{color:#e2e8f0;font-weight:600}
+.empty{font-size:11px;color:var(--t4);line-height:1.5}
+
+#pb-pen{flex:0 1 360px;min-width:268px;background:rgba(2,6,23,.3)}
+#pb-pen .pb-label{color:#93c5fd}
+#pb-scale{flex:0 1 210px;min-width:146px}
+#pen-cv,#scale-cv{display:block;width:100%;height:auto;border-radius:6px;background:rgba(2,6,23,.4)}
+#pen-cv{max-width:330px}
+#scale-cv{max-width:204px}
+.cap{font-size:10px;color:var(--t3);line-height:1.45;margin-top:5px}
+.cap b{color:#cbd5e1;font-weight:600}
+
+/* ---------- Responsive ---------- */
+@media (max-width:980px){
+  body{overflow:auto}
+  #app{flex-direction:column;height:auto}
+  #sidebar{width:100%;flex:none;border-right:none;border-bottom:1px solid var(--line);max-height:none;overflow:visible}
+  #sidebar.hidden{display:block}
+  #sidebar-open.show{display:none}
+  #stage{height:auto}
+  #chart-wrap{height:min(70vh,560px);min-height:440px}
+  #probebar{height:auto;flex-wrap:wrap;overflow:visible}
+  .pb-cell{flex:1 1 200px;border-bottom:1px solid rgba(100,116,139,.16)}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="side-top">
+      <a class="back-link" href="../">&#8592; Patrick Johnson</a>
+      <button class="icon-btn" id="sidebar-close" title="Hide panel">&times;</button>
+    </div>
+
+    <h1>The Spectrum Satellites See</h1>
+
+    <p class="lede">
+      Every Earth-observing satellite is a set of decisions about which slivers of the
+      electromagnetic spectrum are worth measuring. Here they all are on one axis,
+      <b>drawn to scale</b>.
+    </p>
+    <p class="lede">
+      The axis is logarithmic, so each step to the right is ten times the wavelength.
+      <b>Drag across it to zoom into a range</b>, double-click to pull back out, shift-drag
+      to slide sideways. Sentinel-2's thirteen bands live inside a stretch narrower than the
+      word "Microwave".
+    </p>
+
+    <details class="note">
+      <summary>How to read this</summary>
+      <ul>
+        <li><b>Ribbon:</b> the named regions, with the visible slice painted in its own colours and the radar letter bands below.</li>
+        <li><b>Atmosphere:</b> how much of a clear sky a wavelength gets through. Every notch in that curve is a gas eating the signal, and the label inside it names the culprit: water vapour, carbon dioxide, ozone, oxygen. Bands go in the windows between them, never in the walls.</li>
+        <li><b>Surfaces:</b> below 2.5 µm, the fraction of sunlight each material sends back. Above 3 µm, its emissivity: how efficiently it radiates its own heat. A good absorber is a good emitter, so the two are complements, and together they describe the surface across the whole chart.</li>
+        <li><b>Rows:</b> each mission's bands at their true position and width. Radar bands are hairlines because a SAR transmits one nearly pure tone.</li>
+        <li>Hover a band for its job. The bar underneath tracks your cursor wavelength and what it can see through.</li>
+        <li><b>Click a sensor name or a ribbon segment</b> to zoom straight to its range. The strip above the chart shows which slice of the whole spectrum you are looking at: drag it to move around, and clear the zoom with the &times; or the escape key.</li>
+      </ul>
+    </details>
+
+    <div class="sect">
+      <span class="sect-label">Jump to</span>
+      <div class="chip-wrap" id="presets"></div>
+    </div>
+
+    <div class="sect">
+      <span class="sect-label">Layers</span>
+      <div class="rowlist" id="layer-list"></div>
+    </div>
+
+    <div class="sect">
+      <span class="sect-label">Sensors</span>
+      <div class="rowlist" id="mission-list"></div>
+    </div>
+
+    <div class="sect">
+      <span class="sect-label">Surface response</span>
+      <div class="rowlist" id="surface-list"></div>
+    </div>
+
+    <div class="sect">
+      <span class="sect-label">Spectral index</span>
+      <select id="index-select"></select>
+      <div id="index-note"></div>
+      <div id="index-vals"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="tour-btn">Take a tour</button>
+    </div>
+
+    <p class="fineprint">
+      Band positions and widths come from published instrument specifications (Sentinel-2A MSI,
+      Landsat 8/9 OLI-2 and TIRS-2, Sentinel-1 C-SAR, NISAR L and S band). Radar wavelengths are
+      computed from centre frequency and chirp bandwidth. The reflectance, emissivity, atmospheric
+      transmission and penetration curves are stylised: they carry the shapes that drive band
+      design, not laboratory measurements.
+    </p>
+  </aside>
+
+  <main id="stage">
+    <div id="toolbar">
+      <div id="overview" title="Drag to move through the spectrum"><div id="ov-win"></div></div>
+      <button class="tb-reset" id="tb-full" data-tip="Back to the whole spectrum &nbsp;(Esc)">Full spectrum</button>
+    </div>
+    <div id="chart-wrap">
+      <canvas id="chart"></canvas>
+      <button id="sidebar-open" title="Show panel">&#9776;</button>
+      <div id="hint">drag across the chart to zoom into a range</div>
+      <div id="tooltip"></div>
+      <div id="tour-popup">
+        <div class="step" id="tour-step"></div>
+        <h2 id="tour-title"></h2>
+        <p id="tour-body"></p>
+        <div class="tour-nav">
+          <button id="tour-prev">Back</button>
+          <button id="tour-next" class="primary">Next</button>
+          <button id="tour-end" class="end">End tour</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="probebar">
+      <div class="pb-cell" id="pb-wave">
+        <div class="pb-label">Cursor wavelength</div>
+        <div class="pb-big" id="pb-lam">&middot;</div>
+        <div class="pb-sub" id="pb-freq"></div>
+        <div><span class="region-chip" id="pb-region"></span></div>
+        <div id="pb-role"></div>
+      </div>
+
+      <div class="pb-cell" id="pb-atmos">
+        <div class="pb-label">Clear-sky transmission</div>
+        <div class="pb-stat" id="pb-trans">&middot;</div>
+        <div class="bar-track"><div class="bar-fill" id="pb-trans-bar" style="width:0"></div></div>
+        <div class="pb-note" id="pb-absorb"></div>
+        <div class="pb-note" id="pb-cloud"></div>
+      </div>
+
+      <div class="pb-cell" id="pb-surf">
+        <div class="pb-label">Reflectance here</div>
+        <div id="pb-surf-body"></div>
+      </div>
+
+      <div class="pb-cell" id="pb-bands">
+        <div class="pb-label">Bands at this wavelength</div>
+        <div class="bandchips" id="pb-band-list"></div>
+      </div>
+
+      <div class="pb-cell" id="pb-pen">
+        <div class="pb-label">What it sees through</div>
+        <canvas id="pen-cv" width="660" height="272"></canvas>
+        <div class="cap" id="pen-cap"></div>
+      </div>
+
+      <div class="pb-cell" id="pb-scale">
+        <div class="pb-label">This wave, actual size</div>
+        <canvas id="scale-cv" width="408" height="124"></canvas>
+        <div class="cap" id="scale-cap"></div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+'use strict';
+(function(){
+
+/* ==========================================================================
+   Units. Everything internal is wavelength in micrometres (um).
+   ========================================================================== */
+var C_LIGHT = 299792458;              // m/s
+var DOM_LO = 0.30, DOM_HI = 1.2e6;    // 300 nm to 1.2 m
+var MIN_SPAN = 0.0035;                // narrowest view, in decades
+
+function ghzToUm(f){ return 299792.458 / f; }        // GHz -> um
+function umToGhz(u){ return 299792.458 / u; }        // um  -> GHz
+function umToHz(u){ return C_LIGHT / (u * 1e-6); }
+
+function rnd(v, d){ return Number(v.toFixed(d)); }
+
+function fmtLam(um){
+  if (um < 1)    return rnd(um*1000, um*1000 < 10 ? 2 : um*1000 < 100 ? 1 : 0) + ' nm';
+  if (um < 1000) return rnd(um, um < 10 ? 3 : um < 100 ? 2 : 1) + ' µm';
+  if (um < 1e4)  return rnd(um/1e3, 2) + ' mm';
+  if (um < 1e6)  return rnd(um/1e4, 2) + ' cm';
+  return rnd(um/1e6, 3) + ' m';
+}
+
+function fmtFreq(um){
+  var f = umToHz(um);
+  if (f >= 0.999e12) return rnd(f/1e12, f/1e12 < 10 ? 2 : 0) + ' THz';
+  if (f >= 1e9)  return rnd(f/1e9, f < 1e10 ? 3 : f < 1e11 ? 2 : 0) + ' GHz';
+  if (f >= 1e6)  return rnd(f/1e6, 1) + ' MHz';
+  return rnd(f/1e3, 1) + ' kHz';
+}
+
+function fmtEnergy(um){
+  var ev = 1239.84193 / (um * 1000);
+  if (ev >= 1)     return rnd(ev, 2) + ' eV';
+  if (ev >= 1e-3)  return rnd(ev*1e3, 2) + ' meV';
+  if (ev >= 1e-6)  return rnd(ev*1e6, 2) + ' µeV';
+  return ev.toExponential(1) + ' eV';
+}
+
+/* ==========================================================================
+   Colour
+   ========================================================================== */
+function visibleRGB(nm){
+  var r=0, g=0, b=0;
+  if (nm < 440)      { r = -(nm-440)/60; b = 1; }
+  else if (nm < 490) { g = (nm-440)/50;  b = 1; }
+  else if (nm < 510) { g = 1; b = -(nm-510)/20; }
+  else if (nm < 580) { r = (nm-510)/70;  g = 1; }
+  else if (nm < 645) { r = 1; g = -(nm-645)/65; }
+  else               { r = 1; }
+  var f = 1;
+  if (nm < 420)      f = 0.35 + 0.65*(nm-370)/50;
+  else if (nm > 690) f = 0.35 + 0.65*(780-nm)/90;
+  f = Math.max(0.18, Math.min(1, f));
+  var gam = 0.85;
+  return [
+    Math.round(255*Math.pow(Math.max(0,Math.min(1,r))*f, gam)),
+    Math.round(255*Math.pow(Math.max(0,Math.min(1,g))*f, gam)),
+    Math.round(255*Math.pow(Math.max(0,Math.min(1,b))*f, gam))
+  ];
+}
+
+var RADAR_LETTERS = [
+  { n:'P',  f0:0.3,  f1:1,   c:'#2dd4bf' },
+  { n:'L',  f0:1,    f1:2,   c:'#22d3ee' },
+  { n:'S',  f0:2,    f1:4,   c:'#38bdf8' },
+  { n:'C',  f0:4,    f1:8,   c:'#60a5fa' },
+  { n:'X',  f0:8,    f1:12,  c:'#818cf8' },
+  { n:'Ku', f0:12,   f1:18,  c:'#a78bfa' },
+  { n:'K',  f0:18,   f1:27,  c:'#c084fc' },
+  { n:'Ka', f0:27,   f1:40,  c:'#d8b4fe' },
+  { n:'V',  f0:40,   f1:75,  c:'#e9d5ff' },
+  { n:'W',  f0:75,   f1:110, c:'#f3e8ff' }
+];
+RADAR_LETTERS.forEach(function(b){ b.lo = ghzToUm(b.f1); b.hi = ghzToUm(b.f0); });
+
+function radarLetter(um){
+  var f = umToGhz(um);
+  for (var i=0;i<RADAR_LETTERS.length;i++){
+    var b = RADAR_LETTERS[i];
+    if (f >= b.f0 && f < b.f1) return b;
+  }
+  return null;
+}
+
+function lamColor(um){
+  var nm = um*1000;
+  if (nm >= 375 && nm <= 760){
+    var c = visibleRGB(nm);
+    return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+  }
+  if (um < 0.375) return '#a855f7';
+  if (um < 1.4)   return '#e11d48';
+  if (um < 3)     return '#ea580c';
+  if (um < 8)     return '#d97706';
+  if (um < 15)    return '#ca8a04';
+  if (um < 1000)  return '#6b7280';
+  var rb = radarLetter(um);
+  return rb ? rb.c : '#94a3b8';
+}
+
+/* ==========================================================================
+   Named regions
+   ========================================================================== */
+var REGIONS = [
+  { n:'UV',        lo:0.30,  hi:0.38,  c:'#a855f7' },
+  { n:'Visible',   lo:0.38,  hi:0.75,  c:'#ffffff', rainbow:true },
+  { n:'NIR',       lo:0.75,  hi:1.4,   c:'#e11d48' },
+  { n:'SWIR',      lo:1.4,   hi:3.0,   c:'#ea580c' },
+  { n:'Mid IR',    lo:3.0,   hi:8.0,   c:'#d97706' },
+  { n:'Thermal IR',lo:8.0,   hi:15.0,  c:'#ca8a04' },
+  { n:'Far IR',    lo:15,    hi:1000,  c:'#6b7280' },
+  { n:'Microwave', lo:1000,  hi:1.2e6, c:'#60a5fa' }
+];
+
+var VIS_SUB = [
+  { n:'violet', lo:0.380, hi:0.450 },
+  { n:'blue',   lo:0.450, hi:0.495 },
+  { n:'green',  lo:0.495, hi:0.570 },
+  { n:'yellow', lo:0.570, hi:0.590 },
+  { n:'orange', lo:0.590, hi:0.620 },
+  { n:'red',    lo:0.620, hi:0.750 }
+];
+
+function regionOf(um){
+  for (var i=0;i<REGIONS.length;i++){
+    if (um >= REGIONS[i].lo && um < REGIONS[i].hi) return REGIONS[i];
+  }
+  return REGIONS[REGIONS.length-1];
+}
+
+function regionLabel(um){
+  var r = regionOf(um);
+  if (r.n === 'Microwave'){
+    var rb = radarLetter(um);
+    return rb ? rb.n + '-band microwave' : 'Microwave';
+  }
+  if (r.n === 'Visible'){
+    for (var i=0;i<VIS_SUB.length;i++){
+      if (um >= VIS_SUB[i].lo && um < VIS_SUB[i].hi) return 'Visible, ' + VIS_SUB[i].n;
+    }
+  }
+  return r.n;
+}
+
+function roleOf(um){
+  if (um < 0.38)  return 'Mostly eaten by ozone. Little reaches the ground.';
+  if (um < 0.75)  return 'Reflected sunlight. What a camera and an eye record.';
+  if (um < 1.4)   return 'Reflected sunlight, invisible. Leaf structure lives here.';
+  if (um < 3)     return 'Reflected sunlight. Sensitive to water and minerals.';
+  if (um < 5)     return 'Reflected light and emitted heat are comparable here.';
+  if (um < 15)    return 'Emitted heat. The Earth glowing at its own temperature.';
+  if (um < 1000)  return 'Almost entirely blocked by water vapour from orbit.';
+  return 'Radar. The satellite supplies its own illumination.';
+}
+
+/* ==========================================================================
+   Instrument bands
+   ========================================================================== */
+function ctr(nm, widthNm){ return { lo:(nm - widthNm/2)/1000, hi:(nm + widthNm/2)/1000 }; }
+function rng(loUm, hiUm){ return { lo:loUm, hi:hiUm }; }
+function radarBand(fGHz, bwMHz){
+  var f0 = fGHz*1e9, bw = (bwMHz||1)*1e6;
+  return { lo: C_LIGHT/(f0 + bw/2)/1e-6, hi: C_LIGHT/(f0 - bw/2)/1e-6 };
+}
+function band(label, name, ext, res, use){
+  return { label:label, name:name, lo:ext.lo, hi:ext.hi, res:res, use:use };
+}
+
+var MISSIONS = [
+  {
+    id:'s2', name:'Sentinel-2', sub:'MSI, optical', on:true,
+    bands:[
+      band('B1','Coastal aerosol', ctr(443,21),  '60 m', 'Aerosol load for atmospheric correction, plus shallow water and turbidity.'),
+      band('B2','Blue',            ctr(492,66),  '10 m', 'True colour, water clarity, bathymetry, haze. Scattered hardest by the atmosphere.'),
+      band('B3','Green',           ctr(560,36),  '10 m', 'True colour and the green reflectance peak that makes plants look green.'),
+      band('B4','Red',             ctr(665,31),  '10 m', 'Chlorophyll absorption trough. The dark half of NDVI.'),
+      band('B5','Red edge 1',      ctr(704,15),  '20 m', 'On the steepest part of the vegetation curve. Chlorophyll content and stress.'),
+      band('B6','Red edge 2',      ctr(740,15),  '20 m', 'Mid red edge. Separates crop types and tracks canopy nitrogen.'),
+      band('B7','Red edge 3',      ctr(783,20),  '20 m', 'Top of the red edge, where the climb levels off.'),
+      band('B8','NIR',             ctr(833,106), '10 m', 'Leaf internal structure and biomass. Water goes black here.'),
+      band('B8A','Narrow NIR',     ctr(865,21),  '20 m', 'A clean NIR that dodges the 940 nm water vapour feature.'),
+      band('B9','Water vapour',    ctr(945,20),  '60 m', 'Sits on a water vapour absorption line to measure the column above the pixel.'),
+      band('B10','Cirrus',         ctr(1374,31), '60 m', 'Deliberately blind to the ground: water vapour blocks it, so only high thin cloud shows up.'),
+      band('B11','SWIR 1',         ctr(1614,91), '20 m', 'Leaf and soil moisture, snow against cloud, burn severity.'),
+      band('B12','SWIR 2',         ctr(2202,175),'20 m', 'Clay and carbonate minerals, dry vegetation, burn scars.')
+    ]
+  },
+  {
+    id:'l89', name:'Landsat 8/9', sub:'OLI-2 + TIRS-2', on:true,
+    bands:[
+      band('B1','Coastal/aerosol', rng(0.435,0.451), '30 m', 'Coastal water and aerosols. The band Landsat gained in 2013.'),
+      band('B2','Blue',            rng(0.452,0.512), '30 m', 'True colour and water penetration.'),
+      band('B3','Green',           rng(0.533,0.590), '30 m', 'True colour and plant vigour.'),
+      band('B4','Red',             rng(0.636,0.673), '30 m', 'Chlorophyll absorption. Narrower than Landsat 7 used.'),
+      band('B5','NIR',             rng(0.851,0.879), '30 m', 'Biomass and shorelines. Narrowed to avoid the 825 nm water vapour feature.'),
+      band('B6','SWIR 1',          rng(1.566,1.651), '30 m', 'Moisture in soil and vegetation.'),
+      band('B7','SWIR 2',          rng(2.107,2.294), '30 m', 'Minerals and thinning cloud versus smoke.'),
+    Object.assign(band('B8','Panchromatic', rng(0.503,0.676), '15 m',
+      'One wide band across most of the visible. Trades colour for twice the resolution.'), { pan:true, under:true }),
+      band('B9','Cirrus',          rng(1.363,1.384), '30 m', 'High cloud detection inside a water vapour wall.'),
+      band('B10','Thermal 1',      rng(10.60,11.19), '100 m','Land surface temperature, evapotranspiration, fire and volcano heat.'),
+      band('B11','Thermal 2',      rng(11.50,12.51), '100 m','Second thermal band for split-window atmospheric correction.')
+    ]
+  },
+  {
+    id:'s1', name:'Sentinel-1', sub:'C-SAR, 5.405 GHz', on:true,
+    bands:[
+      band('IW','C-band, VV+VH', radarBand(5.405,100), '5 x 20 m', 'All-weather day and night radar. Floods, sea ice, ships, deforestation alerts, and ground deformation by interferometry.')
+    ]
+  },
+  {
+    id:'nisar', name:'NISAR', sub:'L + S band SAR', on:true,
+    bands:[
+      band('L','L-band, 1.257 GHz', radarBand(1.2575,80), '3 to 10 m', 'Penetrates canopy to trunks and ground. Biomass, soil moisture, ice motion, and centimetre-scale deformation.'),
+      band('S','S-band, 3.2 GHz',   radarBand(3.2,75),    '3 to 10 m', 'Between C and L. Light vegetation, agriculture, snow and soil surface.')
+    ]
+  },
+  {
+    id:'other', name:'Other radar', sub:'P to X band', on:true,
+    bands:[
+      band('BIOMASS','P-band, 435 MHz',  radarBand(0.435,6),  '50 m',   'ESA Biomass. The longest wavelength flown for Earth observation, sized to see whole tree trunks through the canopy.'),
+      band('ALOS-2','L-band, 1.258 GHz', radarBand(1.2575,84),'3 to 10 m','JAXA PALSAR-2. The long-running L-band archive for forests and deformation.'),
+      band('SMAP','L-band radiometer, 1.41 GHz', radarBand(1.41,24), '36 km', 'Passive L-band in a protected quiet band. Soil moisture in the top 5 cm.'),
+      band('RCM','C-band, 5.405 GHz',    radarBand(5.405,100),'3 to 100 m','RADARSAT Constellation. Same tone as Sentinel-1, different orbits.'),
+      band('TSX','X-band, 9.65 GHz',     radarBand(9.65,300), '1 to 3 m', 'TerraSAR-X and the smallsat X-band fleet. Sharpest radar, shallowest penetration.')
+    ]
+  }
+];
+
+MISSIONS.forEach(function(m){
+  m.lo = Math.min.apply(null, m.bands.map(function(b){ return b.lo; }));
+  m.hi = Math.max.apply(null, m.bands.map(function(b){ return b.hi; }));
+});
+
+/* ==========================================================================
+   Stylised surface reflectance, 0.4 to 2.5 um, fraction 0 to 1
+   ========================================================================== */
+var SURFACES = [
+  { id:'veg', name:'Green vegetation', c:'#4ade80', on:true,
+    e:[[3,.94],[4,.95],[5,.96],[6,.97],[7,.972],[8,.975],[9,.982],[10,.985],[11,.985],[12,.982],[13,.98],[15,.978]],
+    m:[[1000,.97],[3400,.96],[8100,.96],[16000,.955],[43000,.95],[213000,.93],[1.2e6,.92]],
+    d:[
+    [0.40,.030],[0.45,.035],[0.50,.050],[0.55,.105],[0.58,.095],[0.60,.070],[0.65,.035],
+    [0.67,.028],[0.69,.045],[0.70,.075],[0.72,.240],[0.74,.400],[0.76,.470],[0.80,.490],
+    [0.90,.500],[1.00,.495],[1.10,.490],[1.20,.470],[1.30,.430],[1.40,.270],[1.45,.180],
+    [1.50,.270],[1.60,.350],[1.65,.350],[1.70,.330],[1.80,.250],[1.90,.090],[1.95,.050],
+    [2.00,.100],[2.10,.180],[2.20,.190],[2.30,.160],[2.40,.120],[2.50,.090] ] },
+  { id:'dry', name:'Dry vegetation', c:'#facc15', on:true,
+    e:[[3,.90],[4,.92],[5,.93],[6,.94],[7,.945],[8,.955],[9,.965],[10,.97],[11,.972],[12,.97],[13,.968],[15,.965]],
+    m:[[1000,.96],[3400,.955],[8100,.95],[16000,.95],[43000,.945],[213000,.93],[1.2e6,.925]],
+    d:[
+    [0.40,.035],[0.45,.050],[0.50,.070],[0.55,.110],[0.60,.150],[0.65,.180],[0.70,.215],
+    [0.75,.250],[0.80,.285],[0.90,.320],[1.00,.340],[1.10,.355],[1.20,.360],[1.30,.350],
+    [1.40,.300],[1.45,.280],[1.50,.340],[1.60,.410],[1.70,.420],[1.80,.390],[1.90,.300],
+    [2.00,.330],[2.10,.390],[2.20,.370],[2.30,.330],[2.40,.310],[2.50,.290] ] },
+  { id:'soil', name:'Bare soil', c:'#c2845a', on:true,
+    e:[[3,.88],[4,.90],[5,.92],[6,.93],[7,.93],[8,.90],[8.3,.78],[8.6,.70],[9.0,.72],[9.3,.80],
+       [9.6,.88],[10,.93],[11,.955],[12,.96],[13,.96],[15,.95]],
+    m:[[1000,.93],[3400,.925],[8100,.92],[16000,.91],[43000,.90],[213000,.86],[1.2e6,.84]],
+    d:[
+    [0.40,.060],[0.45,.075],[0.50,.095],[0.55,.115],[0.60,.140],[0.65,.160],[0.70,.180],
+    [0.80,.215],[0.90,.240],[1.00,.255],[1.10,.270],[1.20,.280],[1.30,.290],[1.40,.275],
+    [1.45,.250],[1.50,.290],[1.60,.310],[1.70,.315],[1.80,.305],[1.90,.240],[1.95,.215],
+    [2.00,.270],[2.10,.305],[2.16,.300],[2.20,.255],[2.26,.272],[2.30,.295],[2.40,.285],[2.50,.270] ] },
+  { id:'water', name:'Clear water', c:'#38bdf8', on:true,
+    e:[[3,.96],[4,.975],[5,.985],[6,.99],[7,.988],[8,.987],[9,.99],[10,.992],[11,.99],[12,.985],[13,.982],[15,.975]],
+    m:[[1000,.70],[3400,.63],[8100,.55],[16000,.47],[43000,.40],[213000,.35],[1.2e6,.33]],
+    d:[
+    [0.40,.045],[0.44,.050],[0.48,.045],[0.52,.035],[0.56,.025],[0.60,.015],[0.65,.010],
+    [0.70,.006],[0.75,.004],[0.80,.003],[0.90,.002],[1.00,.002],[1.20,.001],[1.50,.001],
+    [2.00,.000],[2.50,.000] ] },
+  { id:'snow', name:'Fresh snow', c:'#e2e8f0', on:true,
+    e:[[3,.90],[4,.94],[5,.97],[6,.98],[7,.983],[8,.985],[9,.99],[10,.995],[11,.993],[12,.99],[13,.988],[15,.985]],
+    m:[[1000,.60],[3400,.65],[8100,.75],[16000,.85],[43000,.92],[213000,.95],[1.2e6,.96]],
+    d:[
+    [0.40,.960],[0.50,.970],[0.60,.960],[0.70,.950],[0.80,.920],[0.90,.880],[1.00,.820],
+    [1.03,.780],[1.10,.700],[1.20,.550],[1.25,.450],[1.30,.300],[1.40,.100],[1.50,.030],
+    [1.60,.020],[1.70,.030],[1.80,.020],[1.90,.010],[2.00,.020],[2.10,.030],[2.20,.040],
+    [2.30,.030],[2.40,.020],[2.50,.020] ] },
+  { id:'urban', name:'Concrete, roofs', c:'#a78bfa', on:true,
+    e:[[3,.88],[4,.90],[5,.91],[6,.92],[7,.925],[8,.93],[9,.945],[10,.955],[11,.96],[12,.96],[13,.958],[15,.955]],
+    m:[[1000,.91],[3400,.91],[8100,.90],[16000,.90],[43000,.90],[213000,.89],[1.2e6,.88]],
+    d:[
+    [0.40,.180],[0.50,.230],[0.60,.270],[0.70,.300],[0.80,.320],[0.90,.330],[1.00,.340],
+    [1.20,.350],[1.40,.350],[1.60,.360],[1.80,.350],[2.00,.340],[2.20,.330],[2.40,.320],[2.50,.310] ] }
+];
+
+/* Three quantities, one axis: what comes back, then what goes out. */
+var SEGS = [
+  { k:'d', lo:0.4,  hi:2.5,   label:'reflectance',
+    sub:'fraction of sunlight sent back' },
+  { k:'e', lo:3,    hi:15,    label:'thermal emissivity',
+    sub:'efficiency at radiating its own heat' },
+  { k:'m', lo:1000, hi:1.2e6, label:'microwave emissivity',
+    sub:'brightness a passive microwave radiometer sees' }
+];
+function segOf(um){
+  for (var i=0;i<SEGS.length;i++){
+    if (um >= SEGS[i].lo && um <= SEGS[i].hi) return SEGS[i];
+  }
+  return null;
+}
+function surfaceValue(s, um){
+  var seg = segOf(um);
+  if (!seg || !s[seg.k]) return null;
+  var v = sampleAt(s[seg.k], um);
+  return v === null ? null : { v:v, seg:seg };
+}
+
+/* ==========================================================================
+   Stylised clear-sky atmospheric transmission, sea level, 0 to 1
+   ========================================================================== */
+var ATMOS = [
+  [0.30,.00],[0.32,.05],[0.34,.30],[0.36,.55],[0.38,.65],[0.40,.70],[0.45,.78],[0.50,.83],
+  [0.55,.87],[0.60,.89],[0.65,.91],[0.688,.72],[0.70,.90],[0.72,.78],[0.74,.92],[0.759,.28],
+  [0.775,.90],[0.80,.93],[0.82,.84],[0.86,.94],[0.90,.60],[0.94,.10],[0.97,.45],[1.00,.85],
+  [1.04,.92],[1.10,.55],[1.13,.08],[1.17,.60],[1.24,.90],[1.30,.92],[1.35,.25],[1.38,.01],
+  [1.42,.05],[1.47,.35],[1.55,.85],[1.60,.92],[1.70,.90],[1.75,.80],[1.80,.45],[1.85,.05],
+  [1.90,.00],[1.95,.02],[2.00,.35],[2.05,.70],[2.10,.88],[2.20,.90],[2.30,.88],[2.40,.80],
+  [2.50,.60],[2.60,.25],[2.70,.02],[2.80,.00],[2.90,.05],[3.00,.35],[3.20,.70],[3.40,.80],
+  [3.50,.85],[3.70,.88],[3.90,.85],[4.05,.60],[4.20,.05],[4.30,.00],[4.45,.20],[4.60,.60],
+  [4.80,.55],[5.00,.35],[5.30,.10],[5.60,.02],[6.00,.00],[6.50,.00],[7.00,.05],[7.50,.15],
+  [8.00,.55],[8.50,.80],[9.00,.85],[9.30,.80],[9.60,.45],[9.90,.75],[10.5,.88],[11.0,.90],
+  [11.5,.88],[12.0,.85],[12.5,.78],[13.0,.55],[13.5,.25],[14.0,.05],[15.0,.00],[17.0,.00],
+  [20.0,.04],[25.0,.02],[30.0,.00],[60.0,.00],[100,.00],[200,.00],[300,.02],[350,.10],
+  [450,.03],[650,.10],[850,.20],[1000,.25],[1500,.35],[2000,.55],[2540,.25],[3000,.70],
+  [3400,.80],[4000,.55],[5000,.03],[6000,.55],[8100,.90],[10000,.93],[13500,.75],
+  [16000,.95],[30000,.99],[1e5,1.0],[1.2e6,1.0]
+];
+
+// What is doing the absorbing at each notch in the transmission curve.
+var ABSORBERS = [
+  { l:0.759, name:'oxygen' },
+  { l:0.94,  name:'water vapour' },
+  { l:1.13,  name:'water vapour' },
+  { l:1.38,  name:'water vapour' },
+  { l:1.88,  name:'water vapour' },
+  { l:2.75,  name:'water and CO₂' },
+  { l:4.27,  name:'carbon dioxide' },
+  { l:6.3,   name:'water vapour' },
+  { l:9.6,   name:'ozone' },
+  { l:15,    name:'carbon dioxide' },
+  { l:5000,  name:'oxygen' },
+  { l:13500, name:'water vapour' }
+];
+function nearestAbsorber(um){
+  var best = null, bd = 0.13;
+  ABSORBERS.forEach(function(a){
+    var d = Math.abs(Math.log10(a.l) - Math.log10(um));
+    if (d < bd){ bd = d; best = a; }
+  });
+  return best;
+}
+
+/* ==========================================================================
+   Spectral indices, built on Sentinel-2 band centres
+   ========================================================================== */
+var INDICES = [
+  { id:'none', name:'None' },
+  { id:'ndvi', name:'NDVI, greenness', a:0.833, b:0.665, an:'B8 NIR', bn:'B4 red',
+    expr:'(B8 - B4) / (B8 + B4)',
+    note:'The single biggest step in the vegetation curve. Chlorophyll absorbs the red, leaf structure throws back the NIR.' },
+  { id:'ndwi', name:'NDWI, open water', a:0.560, b:0.833, an:'B3 green', bn:'B8 NIR',
+    expr:'(B3 - B8) / (B3 + B8)',
+    note:'Water is the only common surface that is brighter in green than in NIR, so it is the only one that goes positive.' },
+  { id:'ndmi', name:'NDMI, canopy moisture', a:0.833, b:1.614, an:'B8 NIR', bn:'B11 SWIR 1',
+    expr:'(B8 - B11) / (B8 + B11)',
+    note:'Liquid water in leaves absorbs SWIR but not NIR, so the gap between the two tracks how wet the canopy is.' },
+  { id:'nbr', name:'NBR, burn severity', a:0.833, b:2.202, an:'B8 NIR', bn:'B12 SWIR 2',
+    expr:'(B8 - B12) / (B8 + B12)',
+    note:'Fire collapses the NIR plateau and lifts SWIR 2. Differencing NBR before and after a fire maps severity.' },
+  { id:'ndsi', name:'NDSI, snow', a:0.560, b:1.614, an:'B3 green', bn:'B11 SWIR 1',
+    expr:'(B3 - B11) / (B3 + B11)',
+    note:'Snow is brilliant in green and nearly black at 1.6 um. Cloud stays bright in both, which is how the two are told apart.' }
+];
+
+/* ==========================================================================
+   View presets
+   ========================================================================== */
+var PRESETS = [
+  { n:'Everything',   lo:DOM_LO,  hi:DOM_HI },
+  { n:'Visible',      lo:0.37,    hi:0.78 },
+  { n:'Optical suite',lo:0.38,    hi:2.6 },
+  { n:'Red edge',      lo:0.60,   hi:0.95 },
+  { n:'SWIR',         lo:1.3,     hi:2.6 },
+  { n:'Thermal',      lo:7,       hi:15 },
+  { n:'Radar',        lo:9000,    hi:1.1e6 },
+  { n:'C vs L vs P',  lo:25000,   hi:9e5 }
+];
+
+/* ==========================================================================
+   State
+   ========================================================================== */
+var view = { lo:DOM_LO, hi:DOM_HI };
+var layers = { atmos:true, reflect:true, planck:false };
+var probe = { x:null, lam:null, pinned:false };
+var sel = null;          // live range selection, in canvas x
+var activeIndex = null;
+var hoverBand = null;
+var hitBands = [];
+var hitZones = [];
+var mouse = { x:null, y:null };
+
+var cv = document.getElementById('chart');
+var ctx = cv.getContext('2d');
+var wrap = document.getElementById('chart-wrap');
+var tipEl = document.getElementById('tooltip');
+var size = { w:900, h:600 };
+
+var PAD_L = 104, PAD_R = 20, plotX0 = 104, plotX1 = 880, plotW = 776;
+var L = {};
+
+var FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+var MONO = '"SF Mono","Fira Code",ui-monospace,Menlo,monospace';
+
+/* ==========================================================================
+   Scales
+   ========================================================================== */
+function xOf(um){
+  var l0 = Math.log10(view.lo), l1 = Math.log10(view.hi);
+  return plotX0 + (Math.log10(um) - l0) / (l1 - l0) * plotW;
+}
+function lamOf(x){
+  var l0 = Math.log10(view.lo), l1 = Math.log10(view.hi);
+  return Math.pow(10, l0 + (x - plotX0) / plotW * (l1 - l0));
+}
+
+function setView(l0, l1){
+  var span = l1 - l0;
+  var full = Math.log10(DOM_HI) - Math.log10(DOM_LO);
+  if (span > full){ l0 = Math.log10(DOM_LO); l1 = Math.log10(DOM_HI); }
+  else if (span < MIN_SPAN){
+    var c = (l0 + l1) / 2;
+    l0 = c - MIN_SPAN/2; l1 = c + MIN_SPAN/2; span = MIN_SPAN;
+  }
+  if (l0 < Math.log10(DOM_LO)){ l0 = Math.log10(DOM_LO); l1 = l0 + span; }
+  if (l1 > Math.log10(DOM_HI)){ l1 = Math.log10(DOM_HI); l0 = l1 - span; }
+  view.lo = Math.pow(10, l0);
+  view.hi = Math.pow(10, l1);
+  if (!probe.pinned && probe.lam !== null &&
+      (probe.lam < view.lo || probe.lam > view.hi)){
+    probe.lam = Math.pow(10, (l0 + l1) / 2);
+  }
+}
+
+var anim = null;
+function animateTo(lo, hi, ms){
+  var from = [Math.log10(view.lo), Math.log10(view.hi)];
+  var to = [Math.log10(lo), Math.log10(hi)];
+  var t0 = performance.now();
+  var dur = ms || 420;
+  if (anim) cancelAnimationFrame(anim);
+  function step(t){
+    var k = Math.min(1, (t - t0) / dur);
+    var e = k < 0.5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2)/2;
+    setView(from[0] + (to[0]-from[0])*e, from[1] + (to[1]-from[1])*e);
+    draw();
+    if (k < 1) anim = requestAnimationFrame(step); else anim = null;
+  }
+  anim = requestAnimationFrame(step);
+}
+
+/* ==========================================================================
+   Sampling
+   ========================================================================== */
+function sampleAt(arr, lam){
+  var n = arr.length;
+  if (lam < arr[0][0] || lam > arr[n-1][0]) return null;
+  var lo = 0, hi = n - 1;
+  while (hi - lo > 1){
+    var mid = (lo + hi) >> 1;
+    if (arr[mid][0] <= lam) lo = mid; else hi = mid;
+  }
+  var a = arr[lo], b = arr[hi];
+  var d = Math.log10(b[0]) - Math.log10(a[0]);
+  var t = d === 0 ? 0 : (Math.log10(lam) - Math.log10(a[0])) / d;
+  return a[1] + (b[1] - a[1]) * t;
+}
+
+function planck(lamUm, T){
+  var l = lamUm * 1e-6;
+  var h = 6.62607015e-34, kB = 1.380649e-23;
+  var x = h * C_LIGHT / (l * kB * T);
+  if (x > 700) return 0;
+  return (2 * h * C_LIGHT * C_LIGHT / Math.pow(l, 5)) / (Math.exp(x) - 1);
+}
+var SOLAR_SCALE = 0.3 * 2.163e-5;   // albedo x (R_sun / 1 AU)^2
+function solarUp(l){ return SOLAR_SCALE * planck(l, 5778); }
+function earthUp(l){ return planck(l, 288); }
+
+var PLANCK_MAX = 0, CROSSOVER = 4;
+(function(){
+  for (var i = 0; i <= 400; i++){
+    var l = Math.pow(10, -0.6 + i * (2.6 / 400));
+    PLANCK_MAX = Math.max(PLANCK_MAX, solarUp(l), earthUp(l));
+  }
+  var prev = solarUp(1) - earthUp(1);
+  for (var j = 1; j <= 600; j++){
+    var lam = Math.pow(10, j * (1.6 / 600));
+    var d = solarUp(lam) - earthUp(lam);
+    if (prev > 0 && d <= 0){ CROSSOVER = lam; break; }
+    prev = d;
+  }
+})();
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+function computeLayout(){
+  var H = size.h, W = size.w;
+  PAD_L = W < 640 ? 78 : 104;
+  PAD_R = 18;
+  plotX0 = PAD_L; plotX1 = W - PAD_R; plotW = Math.max(60, plotX1 - plotX0);
+
+  var top = 10, ribbonH = 42, gap = 13, axisH = 58;
+  var rows = MISSIONS.filter(function(m){ return m.on; }).map(function(m){
+    return {
+      m: m,
+      live: m.bands.some(function(b){ return b.hi >= view.lo && b.lo <= view.hi; })
+    };
+  });
+  var live = rows.filter(function(r){ return r.live; }).length;
+  var quietH = 17;
+  var quietTotal = (rows.length - live) * quietH;
+  var rowH = 34;
+
+  var panels = [];
+  if (layers.atmos)   panels.push({ k:'atmos',   min:56, w:1.0, max:170 });
+  if (layers.planck)  panels.push({ k:'planck',  min:50, w:0.9, max:130 });
+  if (layers.reflect){
+    var hasRefl = SEGS.some(function(g){ return view.hi >= g.lo && view.lo <= g.hi; });
+    panels.push({ k:'reflect', min: hasRefl ? 82 : 34, w: hasRefl ? 1.7 : 0.12,
+                  max: hasRefl ? 300 : 60 });
+  }
+
+  var fixed = top + ribbonH + gap + live * rowH + quietTotal + (rows.length ? gap : 0)
+            + axisH + panels.length * gap;
+  var space = H - fixed;
+  var minSum = panels.reduce(function(s, p){ return s + p.min; }, 0);
+
+  if (space < minSum && live){
+    var newRowH = Math.max(22, rowH - (minSum - space) / live);
+    fixed -= live * (rowH - newRowH);
+    rowH = newRowH;
+    space = H - fixed;
+  }
+  var extra = Math.max(0, space - minSum);
+  var wSum = panels.reduce(function(s, p){ return s + p.w; }, 0) || 1;
+
+  // panels take their share up to a cap, then the rows get the rest
+  var spare = 0;
+  panels.forEach(function(p){
+    var want = Math.max(30, p.min + extra * p.w / wSum);
+    p.h = Math.min(want, p.max);
+    spare += want - p.h;
+  });
+  if (live && spare > 0) rowH = Math.min(58, rowH + spare / live);
+
+  // whatever is still unclaimed becomes breathing room between sections
+  var axisY = H - axisH;
+  var used = top + ribbonH + live * rowH + quietTotal
+           + panels.reduce(function(t, p){ return t + p.h; }, 0);
+  var nGaps = 1 + panels.length + (rows.length ? 1 : 0);
+  var gapPad = Math.max(0, Math.min(40, ((axisY - used) - nGaps * gap) / nGaps));
+  var g = gap + gapPad;
+
+  L = { rowH:rowH, rows:[] };
+  var y = top;
+  L.ribbon = { y:y, h:ribbonH }; y += ribbonH + g;
+  panels.forEach(function(p){
+    L[p.k] = { y:y, h:p.h };
+    y += p.h + g;
+  });
+  rows.forEach(function(r){
+    var rh = r.live ? rowH : quietH;
+    L.rows.push({ m:r.m, y:y, h:rh, live:r.live });
+    y += rh;
+  });
+  L.axisY = axisY;
+  L.bottom = Math.min(y, axisY);
+
+  L.reflScale = { lo:0, hi:1 };
+  if (layers.reflect){
+    var inView = SEGS.filter(function(g){ return view.hi >= g.lo && view.lo <= g.hi; });
+    if (inView.length === 1 && inView[0].k !== 'd'){
+      var key = inView[0].k, mn = 1, mx = 0, any = false;
+      SURFACES.forEach(function(sf){
+        if (!sf.on || !sf[key]) return;
+        sf[key].forEach(function(pt){
+          if (pt[0] < view.lo || pt[0] > view.hi) return;
+          mn = Math.min(mn, pt[1]); mx = Math.max(mx, pt[1]); any = true;
+        });
+        [Math.max(view.lo, inView[0].lo), Math.min(view.hi, inView[0].hi)].forEach(function(edge){
+          var v = sampleAt(sf[key], edge);
+          if (v !== null){ mn = Math.min(mn, v); mx = Math.max(mx, v); any = true; }
+        });
+      });
+      if (any){
+        var pad = Math.max(0.02, (mx - mn) * 0.2);
+        var lo2 = Math.max(0, mn - pad), hi2 = Math.min(1, mx + pad);
+        if (hi2 - lo2 < 0.09){ var c2 = (hi2 + lo2) / 2; lo2 = Math.max(0, c2 - 0.045); hi2 = Math.min(1, c2 + 0.045); }
+        L.reflScale = { lo:lo2, hi:hi2 };
+      }
+    }
+  }
+}
+
+/* ==========================================================================
+   Small drawing helpers
+   ========================================================================== */
+function clipPlot(){
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(plotX0, 0, plotW, size.h);
+  ctx.clip();
+}
+function labelIn(x0, x1, text, y, color, font){
+  var a = Math.max(x0, plotX0 + 2), b = Math.min(x1, plotX1 - 2);
+  if (b - a < 16) return false;
+  ctx.font = font;
+  var w = ctx.measureText(text).width;
+  if (w > b - a - 6) return false;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, (a + b) / 2, y);
+  return true;
+}
+function labelChip(x0, x1, text, y, color){
+  var a = Math.max(x0, plotX0 + 2), b = Math.min(x1, plotX1 - 2);
+  if (b - a < 16) return false;
+  ctx.font = '600 9.5px ' + FONT;
+  var w = ctx.measureText(text).width;
+  if (w > b - a - 8) return false;
+  var cx = (a + b) / 2;
+  ctx.fillStyle = 'rgba(11,18,32,0.82)';
+  ctx.fillRect(cx - w/2 - 5, y - 7, w + 10, 14);
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, y);
+  return true;
+}
+
+function rowLabel(text, sub, y, h){
+  if (PAD_L < 96) sub = '';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 11px ' + FONT;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText(text, PAD_L - 11, sub ? y + h/2 - 6 : y + h/2);
+  if (sub){
+    ctx.font = '9.5px ' + FONT;
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(sub, PAD_L - 11, y + h/2 + 6);
+  }
+}
+function panelBg(y, h){
+  ctx.fillStyle = 'rgba(2,6,23,0.32)';
+  ctx.fillRect(plotX0, y, plotW, h);
+  ctx.strokeStyle = 'rgba(100,116,139,0.16)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(plotX0 + 0.5, y + 0.5, plotW - 1, h - 1);
+}
+function lum(hex){
+  var c = hex;
+  if (c[0] === '#'){
+    var n = parseInt(c.slice(1), 16);
+    return (0.299*((n>>16)&255) + 0.587*((n>>8)&255) + 0.114*(n&255)) / 255;
+  }
+  var m = c.match(/(\d+)/g);
+  if (!m) return 0.5;
+  return (0.299*(+m[0]) + 0.587*(+m[1]) + 0.114*(+m[2])) / 255;
+}
+
+/* ==========================================================================
+   Ribbon
+   ========================================================================== */
+function pushZone(x0, x1, y0, y1, name, lo, hi, note){
+  var a = Math.max(x0, plotX0), b = Math.min(x1, plotX1);
+  if (b - a < 5) return;
+  hitZones.push({ x0:a, x1:b, y0:y0, y1:y1, name:name, lo:lo, hi:hi, note:note });
+}
+
+function drawRibbon(){
+  var y = L.ribbon.y, h = L.ribbon.h;
+  var hA = 22, hB = h - hA - 2;
+  clipPlot();
+
+  REGIONS.forEach(function(r){
+    var x0 = xOf(r.lo), x1 = xOf(r.hi);
+    if (x1 < plotX0 || x0 > plotX1) return;
+    if (r.rainbow){
+      var a = Math.max(x0, plotX0), b = Math.min(x1, plotX1);
+      for (var px = Math.floor(a); px <= b; px++){
+        var c = visibleRGB(lamOf(px) * 1000);
+        ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+        ctx.fillRect(px, y, 1.2, hA);
+      }
+    } else {
+      ctx.fillStyle = r.c;
+      ctx.globalAlpha = 0.42;
+      ctx.fillRect(x0, y, x1 - x0, hA);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = 'rgba(11,18,32,0.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1, y + hA); ctx.stroke();
+    labelIn(x0, x1, r.n.toUpperCase(), y + hA/2,
+      r.rainbow ? 'rgba(11,18,32,0.9)' : '#e2e8f0', '700 10px ' + FONT);
+    pushZone(x0, x1, y, y + hA, r.n, r.lo, r.hi);
+  });
+
+  var yB = y + hA + 2;
+  VIS_SUB.forEach(function(s){
+    var x0 = xOf(s.lo), x1 = xOf(s.hi);
+    if (x1 < plotX0 || x0 > plotX1) return;
+    var c = visibleRGB((s.lo + s.hi) / 2 * 1000);
+    ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.32)';
+    ctx.fillRect(x0, yB, x1 - x0, hB);
+    labelIn(x0, x1, s.n, yB + hB/2, 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')', '600 9.5px ' + FONT);
+    pushZone(x0, x1, yB, yB + hB, 'Visible, ' + s.n, s.lo, s.hi);
+  });
+
+  RADAR_LETTERS.forEach(function(b){
+    var x0 = xOf(b.lo), x1 = xOf(b.hi);
+    if (x1 < plotX0 || x0 > plotX1) return;
+    ctx.fillStyle = b.c;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(x0, yB, x1 - x0, hB);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(11,18,32,0.8)';
+    ctx.beginPath(); ctx.moveTo(x1, yB); ctx.lineTo(x1, yB + hB); ctx.stroke();
+    if (!labelIn(x0, x1, b.n + '-band', yB + hB/2, b.c, '700 9.5px ' + FONT)){
+      labelIn(x0, x1, b.n, yB + hB/2, b.c, '700 9.5px ' + FONT);
+    }
+    pushZone(x0, x1, yB, yB + hB, b.n + '-band radar', b.lo, b.hi,
+             b.f0 + ' to ' + b.f1 + ' GHz');
+  });
+
+  var subX0 = xOf(100), subX1 = xOf(1000);
+  if (subX1 > plotX0 && subX0 < plotX1){
+    labelIn(subX0, subX1, 'sub-mm', yB + hB/2, '#94a3b8', '600 9.5px ' + FONT);
+  }
+  ctx.restore();
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 10px ' + FONT;
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('SPECTRUM', PAD_L - 11, y + hA/2);
+}
+
+/* ==========================================================================
+   Atmosphere
+   ========================================================================== */
+function drawAtmos(){
+  var y = L.atmos.y, h = L.atmos.h;
+  panelBg(y, h);
+  clipPlot();
+
+  var grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, 'rgba(56,189,248,0.55)');
+  grad.addColorStop(1, 'rgba(56,189,248,0.10)');
+
+  ctx.beginPath();
+  ctx.moveTo(plotX0, y + h);
+  for (var px = plotX0; px <= plotX1; px++){
+    var v = sampleAt(ATMOS, lamOf(px));
+    if (v === null) v = 0;
+    ctx.lineTo(px, y + h - v * h);
+  }
+  ctx.lineTo(plotX1, y + h);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  for (var px2 = plotX0; px2 <= plotX1; px2++){
+    var v2 = sampleAt(ATMOS, lamOf(px2));
+    if (v2 === null) v2 = 0;
+    var yy = y + h - v2 * h;
+    if (px2 === plotX0) ctx.moveTo(px2, yy); else ctx.lineTo(px2, yy);
+  }
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Always name the gas in words. A label that cannot fit without covering
+  // another is dropped rather than shortened into something cryptic.
+  ctx.font = '9.5px ' + FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  var placed = [];
+  ABSORBERS.forEach(function(a){
+    var x = xOf(a.l);
+    if (x < plotX0 + 4 || x > plotX1 - 4) return;
+    var t = sampleAt(ATMOS, a.l);
+    if (t === null) t = 0;
+    var w = ctx.measureText(a.name).width;
+    var cy = y + h - t * h;
+    var ly = t < 0.55 ? cy - 12 : cy + 13;
+    ly = Math.max(y + 9, Math.min(y + h - 9, ly));
+    var cx = Math.max(plotX0 + w/2 + 7, Math.min(plotX1 - w/2 - 7, x));
+    var x0 = cx - w/2 - 6, x1 = cx + w/2 + 6;
+    var clash = placed.some(function(r){
+      return x0 < r.x1 && x1 > r.x0 && Math.abs(ly - r.y) < 17;
+    });
+    if (clash) return;
+    placed.push({ x0:x0, x1:x1, y:ly });
+
+    ctx.strokeStyle = 'rgba(186,230,253,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, cy + (ly < cy ? -2 : 2));
+    ctx.lineTo(cx, ly + (ly < cy ? 7 : -7));
+    ctx.stroke();
+    ctx.fillStyle = '#0b1220';
+    ctx.fillRect(cx - w/2 - 5, ly - 7.5, w + 10, 15);
+    ctx.strokeStyle = 'rgba(125,211,252,0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - w/2 - 4.5, ly - 7, w + 9, 14);
+    ctx.fillStyle = 'rgba(186,230,253,0.98)';
+    ctx.fillText(a.name, cx, ly);
+  });
+  ctx.restore();
+
+  rowLabel('Atmosphere', 'clear sky, sea level', y, h);
+
+  ctx.font = '9px ' + MONO;
+  ctx.fillStyle = '#475569';
+  ctx.textBaseline = 'top';
+  ctx.fillText('100%', PAD_L - 11, y + 1);
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('0', PAD_L - 11, y + h - 1);
+}
+
+/* ==========================================================================
+   Where the energy is: reflected sunlight versus emitted heat
+   ========================================================================== */
+function drawPlanck(){
+  var y = L.planck.y, h = L.planck.h;
+  panelBg(y, h);
+  clipPlot();
+
+  var top = Math.log10(PLANCK_MAX), range = 7;
+  function yOfVal(v){
+    if (v <= 0) return y + h + 20;
+    var k = (Math.log10(v) - (top - range)) / range;
+    return y + h - Math.max(0, Math.min(1, k)) * h;
+  }
+  [[solarUp, '#fbbf24'], [earthUp, '#f87171']].forEach(function(pair){
+    ctx.beginPath();
+    var started = false;
+    for (var px = plotX0; px <= plotX1; px++){
+      var yy = yOfVal(pair[0](lamOf(px)));
+      if (yy > y + h){ started = false; continue; }
+      if (!started){ ctx.moveTo(px, yy); started = true; } else ctx.lineTo(px, yy);
+    }
+    ctx.strokeStyle = pair[1];
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  });
+
+  var xc = xOf(CROSSOVER);
+  if (xc > plotX0 && xc < plotX1){
+    ctx.strokeStyle = 'rgba(226,232,240,0.4)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(xc, y + 2); ctx.lineTo(xc, y + h - 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '9.5px ' + FONT;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.textAlign = xc > plotX1 - 120 ? 'right' : 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('they cross at ' + fmtLam(CROSSOVER), xc + (xc > plotX1 - 120 ? -5 : 5), y + 3);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 9.5px ' + FONT;
+  var xs = xOf(0.5), xe = xOf(10);
+  if (xs > plotX0 && xs < plotX1){ ctx.fillStyle = '#fbbf24'; ctx.fillText('reflected sunlight', xs + 6, y + 12); }
+  if (xe > plotX0 && xe < plotX1){ ctx.fillStyle = '#f87171'; ctx.fillText("Earth's own heat", xe + 6, y + 12); }
+  ctx.restore();
+
+  rowLabel('Energy', 'what is available', y, h);
+}
+
+/* ==========================================================================
+   Surface reflectance
+   ========================================================================== */
+var REFL_LO = 0.4, REFL_HI = 2.5;
+function reflY(v){
+  var sc = L.reflScale || { lo:0, hi:1 };
+  return L.reflect.y + L.reflect.h - (v - sc.lo) / (sc.hi - sc.lo) * L.reflect.h;
+}
+function drawReflect(){
+  var y = L.reflect.y, h = L.reflect.h;
+  panelBg(y, h);
+  clipPlot();
+
+  ctx.strokeStyle = 'rgba(100,116,139,0.16)';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75].forEach(function(f){
+    var yy = Math.round(y + h - f * h) + 0.5;
+    ctx.beginPath(); ctx.moveTo(plotX0, yy); ctx.lineTo(plotX1, yy); ctx.stroke();
+  });
+
+  // the stretches where the question itself has no answer
+  var gaps = [[DOM_LO, SEGS[0].lo], [SEGS[0].hi, SEGS[1].lo], [SEGS[1].hi, SEGS[2].lo]];
+  ctx.fillStyle = 'rgba(11,18,32,0.55)';
+  gaps.forEach(function(g){
+    var a = Math.max(xOf(g[0]), plotX0), b = Math.min(xOf(g[1]), plotX1);
+    if (b > a) ctx.fillRect(a, y, b - a, h);
+  });
+
+  SURFACES.forEach(function(s){
+    if (!s.on) return;
+    SEGS.forEach(function(seg){
+      if (!s[seg.k]) return;
+      var a = Math.max(plotX0, xOf(seg.lo)), b = Math.min(plotX1, xOf(seg.hi));
+      if (b - a < 1) return;
+      ctx.beginPath();
+      var started = false;
+      for (var px = Math.floor(a); px <= Math.ceil(b); px++){
+        var v = sampleAt(s[seg.k], lamOf(px));
+        if (v === null){ started = false; continue; }
+        var yy = reflY(v);
+        if (!started){ ctx.moveTo(px, yy); started = true; } else ctx.lineTo(px, yy);
+      }
+      ctx.strokeStyle = s.c;
+      ctx.lineWidth = 1.7;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    });
+  });
+
+  // name the quantity under each stretch of curve
+  if (h > 38){
+    SEGS.forEach(function(seg){
+      labelChip(xOf(seg.lo), xOf(seg.hi), seg.label, y + h - 10, '#94a3b8');
+    });
+    var mid = xOf(Math.sqrt(SEGS[1].hi * SEGS[2].lo));
+    if (mid > plotX0 + 30 && mid < plotX1 - 30){
+      ctx.font = '9.5px ' + FONT;
+      ctx.fillStyle = '#475569';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('nothing observes here', mid, y + h/2);
+    }
+  }
+
+  if (activeIndex){
+    var xs = [];
+    [activeIndex.a, activeIndex.b].forEach(function(lam){
+      var x = xOf(lam);
+      xs.push(x);
+      if (x < plotX0 || x > plotX1) return;
+      ctx.strokeStyle = 'rgba(96,165,250,0.75)';
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.stroke();
+      ctx.setLineDash([]);
+      SURFACES.forEach(function(s){
+        if (!s.on) return;
+        var v = sampleAt(s.d, lam);
+        if (v === null) return;
+        ctx.beginPath();
+        ctx.arc(x, reflY(v), 3, 0, Math.PI*2);
+        ctx.fillStyle = s.c;
+        ctx.fill();
+        ctx.strokeStyle = '#0b1220';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    });
+    // one opaque marker for the pair, so no curve can run through the wording
+    var shortName = activeIndex.name.split(',')[0];
+    ctx.font = '700 10.5px ' + FONT;
+    var lw = ctx.measureText(shortName).width + 16;
+    var cx = Math.max(plotX0 + lw/2 + 2, Math.min(plotX1 - lw/2 - 2, (xs[0] + xs[1]) / 2));
+    ctx.beginPath();
+    ctx.rect(cx - lw/2, y + 5, lw, 18);
+    ctx.fillStyle = 'rgba(2,6,23,0.95)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(96,165,250,0.65)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#bfdbfe';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(shortName, cx, y + 14.5);
+  }
+  ctx.restore();
+
+  var seg = segOf(Math.sqrt(view.lo * view.hi));
+  rowLabel('Surfaces', h > 44 ? (seg ? seg.label : 'response') : '', y, h);
+  if (h < 48) return;
+  var sc = L.reflScale || { lo:0, hi:1 };
+  ctx.font = '9px ' + MONO;
+  ctx.fillStyle = sc.hi < 1 || sc.lo > 0 ? '#64748b' : '#475569';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText(Math.round(sc.hi * 100) + '%', PAD_L - 11, y + 1);
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(Math.round(sc.lo * 100) + '%', PAD_L - 11, y + h - 1);
+}
+
+/* ==========================================================================
+   Instrument rows
+   ========================================================================== */
+function drawRows(){
+  hitBands = [];
+  L.rows.forEach(function(r){
+    var h = r.h, y = r.y;
+
+    if (!r.live){
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = '10px ' + FONT;
+      ctx.fillStyle = '#475569';
+      ctx.fillText(r.m.name, PAD_L - 11, y + h/2);
+      ctx.strokeStyle = 'rgba(100,116,139,0.09)';
+      ctx.lineWidth = 1;
+      var qy = Math.round(y + h/2) + 0.5;
+      ctx.beginPath(); ctx.moveTo(plotX0, qy); ctx.lineTo(plotX1, qy); ctx.stroke();
+      ctx.font = '9.5px ' + FONT;
+      ctx.fillStyle = '#334e68';
+      ctx.textAlign = 'left';
+      ctx.fillText('nothing in view', plotX0 + 8, y + h/2);
+      hitZones.push({ x0:2, x1:PAD_L - 6, y0:y, y1:y + h, name:r.m.name,
+                      lo:r.m.lo, hi:r.m.hi, minDec:0.5,
+                      note:r.m.bands.length + ' bands' });
+      return;
+    }
+    rowLabel(r.m.name, r.m.sub, y, h);
+    hitZones.push({ x0:2, x1:PAD_L - 6, y0:y, y1:y + h, name:r.m.name,
+                    lo:r.m.lo, hi:r.m.hi, minDec:0.5,
+                    note:r.m.bands.length + (r.m.bands.length === 1 ? ' band' : ' bands') });
+
+    clipPlot();
+    ctx.strokeStyle = 'rgba(100,116,139,0.14)';
+    ctx.lineWidth = 1;
+    var mid = Math.round(y + h/2) + 0.5;
+    ctx.beginPath(); ctx.moveTo(plotX0, mid); ctx.lineTo(plotX1, mid); ctx.stroke();
+
+    var bh = Math.max(11, h - 13);
+    var by = y + (h - bh) / 2;
+
+    var vis = [];
+    r.m.bands.forEach(function(b){
+      var x0 = xOf(b.lo), x1 = xOf(b.hi);
+      if (x1 < plotX0 - 6 || x0 > plotX1 + 6) return;
+      vis.push({ b:b, x0:x0, w:Math.max(2.5, x1 - x0) });
+    });
+
+    var byPos = vis.slice().sort(function(a, b){ return a.x0 - b.x0; });
+    byPos.forEach(function(o, i){
+      o.gap = (i + 1 < byPos.length ? byPos[i+1].x0 : plotX1 + 1e5) - (o.x0 + o.w);
+    });
+
+    // widest first, so a broad band never buries the narrow ones inside it
+    vis.slice().sort(function(a, b){ return b.w - a.w; }).forEach(function(o){
+      var b = o.b, x0 = o.x0, drawW = o.w;
+      var bbh = b.under ? Math.min(7, bh) : bh;
+      var bby = b.under ? by + bh - bbh : by;
+      var mid = (b.lo + b.hi) / 2;
+      var col = lamColor(mid);
+      var isHot = activeIndex && r.m.id === 's2' &&
+        (Math.abs(mid - activeIndex.a) < 0.02 || Math.abs(mid - activeIndex.b) < 0.02);
+      var isHover = hoverBand && hoverBand.band === b;
+
+      ctx.globalAlpha = isHover || isHot ? 1 : 0.82;
+      if (b.pan && drawW > 6){
+        for (var px = 0; px < drawW; px++){
+          var c = visibleRGB(lamOf(x0 + px) * 1000);
+          ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+          ctx.fillRect(x0 + px, bby, 1.2, bbh);
+        }
+      } else {
+        ctx.fillStyle = col;
+        ctx.fillRect(x0, bby, drawW, bbh);
+      }
+      ctx.globalAlpha = 1;
+
+      if (isHover || isHot){
+        ctx.strokeStyle = isHot ? '#93c5fd' : '#f8fafc';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x0 - 0.5, bby - 0.5, drawW + 1, bbh + 1);
+      }
+      if (drawW < 3.2){
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(x0 + drawW/2, by - 2);
+        ctx.lineTo(x0 + drawW/2 - 3.5, by - 6.5);
+        ctx.lineTo(x0 + drawW/2 + 3.5, by - 6.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      var placed = false;
+      if (drawW > 20 && !b.under){
+        placed = labelIn(x0, x0 + drawW, b.label, by + bh/2,
+          lum(col) > 0.55 ? 'rgba(11,18,32,0.92)' : 'rgba(248,250,252,0.95)',
+          '700 9.5px ' + FONT);
+      }
+      if (!placed){
+        // no room inside: set the label beside the band when nothing collides
+        ctx.font = '700 9.5px ' + FONT;
+        var tw = ctx.measureText(b.label).width;
+        if (o.gap > tw + 12 && x0 + drawW + tw + 6 < plotX1){
+          ctx.fillStyle = col;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(b.label, x0 + drawW + 4, by + bh/2);
+        }
+      }
+      hitBands.push({
+        x0: x0 - 2, x1: x0 + drawW + 2,
+        y0: by - 7, y1: by + bh + 2, band: b, mission: r.m, col: col
+      });
+    });
+    ctx.restore();
+  });
+}
+
+/* ==========================================================================
+   Axis
+   ========================================================================== */
+function niceStep(x){
+  var e = Math.pow(10, Math.floor(Math.log10(x)));
+  var f = x / e;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * e;
+}
+function buildTicks(){
+  var lo = Math.log10(view.lo), hi = Math.log10(view.hi), out = [];
+  if (hi - lo > 0.5){
+    for (var d = Math.floor(lo); d <= Math.ceil(hi); d++){
+      for (var m = 1; m < 10; m++){
+        var lam = m * Math.pow(10, d);
+        if (lam < view.lo || lam > view.hi) continue;
+        out.push({ lam:lam, major:(m === 1 || m === 2 || m === 5) });
+      }
+    }
+  } else {
+    var step = niceStep((view.hi - view.lo) / 6);
+    var start = Math.ceil(view.lo / step);
+    for (var i = start; i * step <= view.hi; i++){
+      out.push({ lam:i * step, major:true });
+    }
+  }
+  return out;
+}
+function buildFreqTicks(){
+  var out = [];
+  var fLo = umToHz(view.hi), fHi = umToHz(view.lo);
+  for (var d = Math.floor(Math.log10(fLo)); d <= Math.ceil(Math.log10(fHi)); d++){
+    [1, 2, 5].forEach(function(m){
+      var f = m * Math.pow(10, d);
+      if (f < fLo || f > fHi) return;
+      out.push(C_LIGHT / f / 1e-6);
+    });
+  }
+  return out.sort(function(a, b){ return a - b; });
+}
+
+function drawAxis(){
+  var y = L.axisY;
+  ctx.strokeStyle = 'rgba(100,116,139,0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(plotX0, y + 0.5); ctx.lineTo(plotX1, y + 0.5); ctx.stroke();
+
+  clipPlot();
+  var ticks = buildTicks(), lastX = -999;
+  ctx.textBaseline = 'top';
+  ticks.forEach(function(t){
+    var x = Math.round(xOf(t.lam)) + 0.5;
+    if (x < plotX0 || x > plotX1) return;
+    ctx.strokeStyle = t.major ? 'rgba(148,163,184,0.55)' : 'rgba(100,116,139,0.3)';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + (t.major ? 6 : 3)); ctx.stroke();
+    if (!t.major || x - lastX < 54) return;
+    ctx.font = '10.5px ' + MONO;
+    var lbl = fmtLam(t.lam);
+    if (x + ctx.measureText(lbl).width / 2 > plotX1) return;
+    lastX = x;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.fillText(lbl, x, y + 8);
+  });
+
+  var lastF = -999, freqDrawn = 0;
+  buildFreqTicks().forEach(function(lam){
+    var x = Math.round(xOf(lam)) + 0.5;
+    if (x < plotX0 || x > plotX1 || x - lastF < 62) return;
+    ctx.font = '9.5px ' + MONO;
+    var flbl = fmtFreq(lam);
+    if (x + ctx.measureText(flbl).width / 2 > plotX1) return;
+    lastF = x; freqDrawn++;
+    ctx.strokeStyle = 'rgba(100,116,139,0.25)';
+    ctx.beginPath(); ctx.moveTo(x, y + 22); ctx.lineTo(x, y + 26); ctx.stroke();
+    ctx.fillStyle = '#52637a';
+    ctx.textAlign = 'center';
+    ctx.fillText(flbl, x, y + 27);
+  });
+  ctx.restore();
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.font = '9.5px ' + FONT;
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('wavelength', PAD_L - 11, y + 8);
+  if (freqDrawn){
+    ctx.fillStyle = '#475569';
+    ctx.fillText('frequency', PAD_L - 11, y + 27);
+  }
+}
+
+/* ==========================================================================
+   Probe
+   ========================================================================== */
+function drawProbe(){
+  if (probe.x === null) return;
+  var x = Math.round(probe.x) + 0.5;
+  if (x < plotX0 || x > plotX1) return;
+  ctx.strokeStyle = probe.pinned ? 'rgba(250,204,21,0.85)' : 'rgba(226,232,240,0.55)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash(probe.pinned ? [] : [3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x, L.ribbon.y);
+  ctx.lineTo(x, L.axisY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (L.reflect){
+    SURFACES.forEach(function(s){
+      if (!s.on) return;
+      var sv = surfaceValue(s, probe.lam);
+      if (!sv) return;
+      ctx.beginPath();
+      ctx.arc(x, reflY(sv.v), 2.6, 0, Math.PI*2);
+      ctx.fillStyle = s.c;
+      ctx.fill();
+    });
+  }
+  if (L.atmos){
+    var t = sampleAt(ATMOS, probe.lam);
+    if (t !== null){
+      ctx.beginPath();
+      ctx.arc(x, L.atmos.y + L.atmos.h - t * L.atmos.h, 2.6, 0, Math.PI*2);
+      ctx.fillStyle = '#7dd3fc';
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = probe.pinned ? '#facc15' : '#e2e8f0';
+  ctx.beginPath();
+  ctx.moveTo(x, L.axisY);
+  ctx.lineTo(x - 4, L.axisY - 6);
+  ctx.lineTo(x + 4, L.axisY - 6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* ==========================================================================
+   Frame
+   ========================================================================== */
+function draw(){
+  computeLayout();
+  ctx.clearRect(0, 0, size.w, size.h);
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, size.w, size.h);
+
+  if (probe.lam) probe.x = xOf(probe.lam);
+  hitZones = [];
+
+  drawRibbon();
+  if (layers.atmos)   drawAtmos();
+  if (layers.planck)  drawPlanck();
+  if (layers.reflect) drawReflect();
+  drawRows();
+  drawAxis();
+
+  if (mouse.x !== null){
+    var hz = zoneAt(mouse.x, mouse.y);
+    if (hz){
+      ctx.strokeStyle = 'rgba(147,197,253,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(hz.x0 + 0.75, hz.y0 + 0.75, hz.x1 - hz.x0 - 1.5, hz.y1 - hz.y0 - 1.5);
+    }
+  }
+  drawProbe();
+
+  drawSelection();
+  updateToolbar();
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.font = '10px ' + MONO;
+  ctx.fillStyle = '#475569';
+  ctx.fillText('showing ' + fmtLam(view.lo) + ' to ' + fmtLam(view.hi), plotX1, size.h - 3);
+
+  if (probe.lam !== lastBarLam || probe.pinned !== lastBarPinned) updateProbeBar();
+}
+
+function drawSelection(){
+  if (!sel) return;
+  var a = Math.max(plotX0, Math.min(sel.x0, sel.x1));
+  var b = Math.min(plotX1, Math.max(sel.x0, sel.x1));
+  if (b - a < 1.5) return;
+  var top = L.ribbon.y, bot = L.axisY;
+
+  ctx.fillStyle = 'rgba(11,18,32,0.55)';
+  ctx.fillRect(plotX0, top, a - plotX0, bot - top);
+  ctx.fillRect(b, top, plotX1 - b, bot - top);
+
+  ctx.fillStyle = 'rgba(96,165,250,0.12)';
+  ctx.fillRect(a, top, b - a, bot - top);
+  ctx.strokeStyle = '#60a5fa';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(a + 0.5, top); ctx.lineTo(a + 0.5, bot);
+  ctx.moveTo(b - 0.5, top); ctx.lineTo(b - 0.5, bot);
+  ctx.stroke();
+
+  var txt = fmtLam(lamOf(a)) + '  to  ' + fmtLam(lamOf(b));
+  ctx.font = '600 11px ' + MONO;
+  var w = ctx.measureText(txt).width + 14;
+  var cx = Math.max(plotX0 + w/2, Math.min(plotX1 - w/2, (a + b) / 2));
+  var ly = L.axisY - 24;
+  ctx.fillStyle = 'rgba(2,6,23,0.92)';
+  ctx.strokeStyle = 'rgba(96,165,250,0.5)';
+  ctx.beginPath();
+  ctx.rect(cx - w/2, ly, w, 19);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#bfdbfe';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, cx, ly + 10);
+}
+
+function resize(){
+  var r = wrap.getBoundingClientRect();
+  size.w = Math.max(320, Math.round(r.width));
+  size.h = Math.max(320, Math.round(r.height));
+  var dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(size.w * dpr);
+  cv.height = Math.round(size.h * dpr);
+  cv.style.width = size.w + 'px';
+  cv.style.height = size.h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+/* ==========================================================================
+   What a wavelength can see through
+   ========================================================================== */
+function penetration(um){
+  var o = { cloud:0, canopy:0, soilCm:null, water:null, note:'', target:'' };
+  if (um < 1000){
+    o.cloud = 0;
+    if (um < 0.75){
+      o.canopy = 0.06;
+      o.target = 'canopy top';
+      var m = um < 0.50 ? 25 : um < 0.58 ? 15 : um < 0.62 ? 6 : 2;
+      o.water = m;
+      o.note = 'Cloud stops it dead. In clear sky it reads the canopy top, and it is the only light that reaches into water: about ' + m + ' m in a clear sea.';
+    } else if (um < 1.4){
+      o.canopy = 0.14;
+      o.target = 'a few leaf layers down';
+      o.water = 0.2;
+      o.note = 'Cloud stops it. It bounces between several leaf layers before coming back out, which is why canopies are so bright here. Water swallows it within centimetres.';
+    } else if (um < 3){
+      o.canopy = 0.07;
+      o.target = 'outer leaf surfaces';
+      o.note = 'Cloud stops it. Liquid water absorbs it, so it reports moisture in the outermost leaves and the top skin of the soil.';
+    } else {
+      o.canopy = 0.02;
+      o.target = 'the skin of the surface';
+      o.note = 'Cloud stops it. Heat escapes from only the top few micrometres, so it measures skin temperature and nothing below it.';
+    }
+    return o;
+  }
+  var f = umToGhz(um);
+  o.cloud = f > 40 ? 0.45 : f > 15 ? 0.85 : 1;
+  o.canopy = Math.max(0, Math.min(1, Math.pow(Math.max(0, (Math.log10(um) - 4) / 1.5), 1.2)));
+  var cm = um / 1e4;
+  o.soilCm = [cm * 0.1, cm * 0.5];
+  var letter = radarLetter(um);
+  var L2 = letter ? letter.n : '';
+  if (f > 40){
+    o.target = 'the canopy surface';
+    o.note = 'Through cloud, but rain and snow scatter it badly. It stops at the outside of the canopy.';
+  } else if (L2 === 'Ka' || L2 === 'K' || L2 === 'Ku'){
+    o.target = 'leaves and needles';
+    o.note = 'Through cloud, though heavy rain attenuates it. Scatters off individual leaves and needles at the very top of the canopy.';
+  } else if (L2 === 'X'){
+    o.target = 'leaves and twigs';
+    o.note = 'Through cloud and rain. Scatters off leaves and twigs in the upper canopy. Sharpest radar imagery, shallowest look.';
+  } else if (L2 === 'C'){
+    o.target = 'upper canopy, small branches';
+    o.note = 'Cloud, smoke and darkness are irrelevant. It scatters from leaves and small branches, and over bare ground it senses moisture in the top few centimetres.';
+  } else if (L2 === 'S'){
+    o.target = 'through light vegetation';
+    o.note = 'Between C and L. Through crops and light vegetation, partway into a forest canopy.';
+  } else if (L2 === 'L'){
+    o.target = 'trunks and the ground';
+    o.note = 'Long enough to slip past leaves and branches to trunks and ground. It sees flooding under a forest, and moisture several centimetres down.';
+  } else {
+    o.target = 'trunks, ground, buried layers';
+    o.note = 'Longer than almost anything in a forest, so the canopy is nearly transparent. It scatters off trunks and ground, which is how a satellite weighs a forest.';
+  }
+  return o;
+}
+
+// Yardsticks with defined or standardised sizes, not vague body parts.
+var OBJECTS = [
+  [0.1,    'a virus particle',           '100 nm'],
+  [0.32,   "a Blu-ray disc's track pitch", '320 nm'],
+  [1.6,    "a CD's track pitch",          '1.6 µm'],
+  [7,      'a red blood cell',            '7 µm'],
+  [20,     'a cloud droplet',             '20 µm'],
+  [100,    'a sheet of copier paper',     '0.1 mm thick'],
+  [250,    'a grain of fine sand',        '0.25 mm'],
+  [760,    'a credit card',               '0.76 mm thick'],
+  [2000,   'a raindrop',                  '2 mm'],
+  [5000,   'a hailstone',                 '5 mm, the threshold'],
+  [19050,  'a US penny',                  '19.05 mm'],
+  [42670,  'a golf ball',                 '42.67 mm minimum'],
+  [67000,  'a tennis ball',               '6.7 cm'],
+  [97000,  'a softball',                  '9.7 cm'],
+  [120000, 'a DVD',                       '12 cm'],
+  [239000, 'a basketball',                '23.9 cm'],
+  [304800, 'a one-foot ruler',            '30.48 cm'],
+  [420000, 'the long side of A3 paper',   '42.0 cm'],
+  [594000, 'the long side of A2 paper',   '59.4 cm'],
+  [841000, 'the long side of A1 paper',   '84.1 cm'],
+  [1e6,    'a metre stick',               '1 m']
+];
+function nearestObject(um){
+  var best = OBJECTS[0], bd = Infinity;
+  OBJECTS.forEach(function(o){
+    var d = Math.abs(Math.log10(o[0]) - Math.log10(um));
+    if (d < bd){ bd = d; best = o; }
+  });
+  return best;
+}
+
+/* ==========================================================================
+   Probe bar
+   ========================================================================== */
+var el = {
+  lam: document.getElementById('pb-lam'),
+  freq: document.getElementById('pb-freq'),
+  region: document.getElementById('pb-region'),
+  role: document.getElementById('pb-role'),
+  trans: document.getElementById('pb-trans'),
+  transBar: document.getElementById('pb-trans-bar'),
+  cloud: document.getElementById('pb-cloud'),
+  surf: document.getElementById('pb-surf-body'),
+  bands: document.getElementById('pb-band-list'),
+  penCv: document.getElementById('pen-cv'),
+  penCap: document.getElementById('pen-cap'),
+  scaleCv: document.getElementById('scale-cv'),
+  scaleCap: document.getElementById('scale-cap')
+};
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+var lastBarLam = null, lastBarPinned = null;
+function updateProbeBar(){
+  var um = probe.lam;
+  if (!um) return;
+  lastBarLam = um;
+  lastBarPinned = probe.pinned;
+  var col = lamColor(um);
+
+  var waveLabel = document.querySelector('#pb-wave .pb-label');
+  waveLabel.textContent = probe.pinned ? 'Pinned wavelength, click to release' : 'Cursor wavelength';
+  waveLabel.style.color = probe.pinned ? '#facc15' : '';
+
+  el.lam.textContent = fmtLam(um);
+  el.lam.style.color = col;
+  el.freq.textContent = fmtFreq(um) + '  ·  ' + fmtEnergy(um);
+  el.region.textContent = regionLabel(um);
+  el.region.style.color = col;
+  el.region.style.borderColor = col;
+  el.region.style.background = 'rgba(2,6,23,0.5)';
+  el.role.textContent = roleOf(um);
+
+  var t = sampleAt(ATMOS, um);
+  if (t === null) t = 0;
+  var absorber = nearestAbsorber(um);
+  var absEl = document.getElementById('pb-absorb');
+  if (t > 0.75){
+    absEl.innerHTML = 'An atmospheric <b>window</b>. Most of it reaches the ground.';
+  } else if (absorber){
+    absEl.innerHTML = 'Absorbed here mainly by <b>' + esc(absorber.name) + '</b>.';
+  } else {
+    absEl.innerHTML = 'The atmosphere itself absorbs most of it.';
+  }
+  el.trans.textContent = Math.round(t * 100) + '%';
+  el.transBar.style.width = (t * 100) + '%';
+  el.transBar.style.background = t > 0.6 ? '#38bdf8' : t > 0.25 ? '#fbbf24' : '#f87171';
+
+  var pen = penetration(um);
+  var cloudTxt = pen.cloud >= 1 ? '<b>Clouds: transparent.</b> Rain too.'
+    : pen.cloud > 0.6 ? '<b>Clouds: transparent.</b> Heavy rain attenuates.'
+    : pen.cloud > 0.2 ? '<b>Clouds: mostly transparent</b>, rain and snow are not.'
+    : '<b>Clouds: opaque.</b> Nothing below them is measured.';
+  el.cloud.innerHTML = cloudTxt;
+
+  var seg = segOf(um);
+  var surfLabel = document.querySelector('#pb-surf .pb-label');
+  surfLabel.textContent = seg ? seg.label : 'Surface response';
+  if (seg){
+    var rows = '';
+    SURFACES.forEach(function(s){
+      if (!s.on) return;
+      var sv = surfaceValue(s, um);
+      if (!sv) return;
+      rows += '<div class="surf-row"><div class="surf-name" style="color:' + s.c + '">' + esc(s.name) + '</div>'
+        + '<div class="surf-track"><div class="surf-fill" style="width:' + (sv.v*100).toFixed(0) + '%;background:' + s.c + '"></div></div>'
+        + '<div class="surf-val">' + (sv.v*100).toFixed(0) + '%</div></div>';
+    });
+    el.surf.innerHTML = (rows || '<div class="empty">No surfaces selected.</div>')
+      + '<div class="cap" style="margin-top:4px">' + esc(seg.sub) + '</div>';
+  } else if (um < REFL_LO){
+    el.surf.innerHTML = '<div class="empty">Below 400 nm there is little sunlight left to reflect, and ozone takes most of it.</div>';
+  } else if (um < SEGS[1].lo){
+    el.surf.innerHTML = '<div class="empty">The handover: past 2.5 µm reflected sunlight fades out and the surface starts to be seen by the heat it emits.</div>';
+  } else {
+    el.surf.innerHTML = '<div class="empty">Between 15 µm and 1 mm the atmosphere is opaque from orbit, so no satellite looks here.</div>';
+  }
+
+  var covering = [], others = [];
+  MISSIONS.forEach(function(m){
+    if (!m.on) return;
+    m.bands.forEach(function(b){
+      if (um >= b.lo && um <= b.hi) covering.push({ m:m, b:b });
+      else others.push({ m:m, b:b, d: um < b.lo ? b.lo - um : um - b.hi, right: um < b.lo });
+    });
+  });
+  var bandLabel = document.querySelector('#pb-bands .pb-label');
+  if (covering.length){
+    bandLabel.textContent = 'Bands measuring here';
+    el.bands.innerHTML = covering.map(function(o){
+      return '<span class="bandchip" style="border-color:' + lamColor((o.b.lo+o.b.hi)/2)
+        + '99"><b>' + esc(o.m.name) + '</b> ' + esc(o.b.label) + '</span>';
+    }).join('');
+  } else {
+    bandLabel.textContent = 'Nearest bands';
+    others.sort(function(a, b){ return a.d - b.d; });
+    el.bands.innerHTML = '<div class="empty" style="margin-bottom:5px">Nothing measures '
+      + fmtLam(um) + '.</div>'
+      + others.slice(0, 3).map(function(o){
+          return '<span class="bandchip" style="border-color:' + lamColor((o.b.lo+o.b.hi)/2)
+            + '66"><b>' + esc(o.m.name) + '</b> ' + esc(o.b.label)
+            + ' <span style="color:#64748b">' + (o.right ? '&#9656; ' : '&#9666; ')
+            + fmtLam(o.d) + '</span></span>';
+        }).join('');
+  }
+
+  drawPen(pen, um);
+  drawScale(um);
+}
+
+var CLOUD_LOBES = [[44,20,13],[68,18,15],[92,16,17],[116,15,18],[140,15,18],[164,16,17],
+                   [188,17,16],[212,18,15],[236,19,14],[258,21,12],[276,23,10]];
+function cloudPath(g, grow, base){
+  g.beginPath();
+  CLOUD_LOBES.forEach(function(l){
+    g.moveTo(l[0] + l[2] + grow, l[1]);
+    g.arc(l[0], l[1], l[2] + grow, 0, Math.PI*2);
+  });
+  g.rect(39 - grow, base - 8 - grow, 241 + grow*2, 8 + grow*2);
+}
+
+function penTree(g, cx, base, k){
+  g.fillStyle = '#6b5138';
+  g.beginPath();
+  g.moveTo(cx - 3*k, base);
+  g.lineTo(cx - 1.3*k, base - 34*k);
+  g.lineTo(cx + 1.3*k, base - 34*k);
+  g.lineTo(cx + 3*k, base);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = '#6b5138';
+  g.lineWidth = 1.3*k;
+  g.beginPath();
+  g.moveTo(cx, base - 24*k); g.lineTo(cx - 11*k, base - 34*k);
+  g.moveTo(cx, base - 29*k); g.lineTo(cx + 12*k, base - 37*k);
+  g.stroke();
+
+  var lumps = [[-13,-38,11],[-4,-46,13],[8,-42,12],[15,-33,10],[-14,-29,10],[0,-31,11],[6,-25,8]];
+  g.beginPath();
+  lumps.forEach(function(l){
+    g.moveTo(cx + (l[0] + l[2])*k, base + l[1]*k);
+    g.arc(cx + l[0]*k, base + l[1]*k, l[2]*k, 0, Math.PI*2);
+  });
+  g.fillStyle = '#2f7d4f';
+  g.fill();
+  g.beginPath();
+  [[-6,-47,7],[3,-45,6],[-12,-40,5]].forEach(function(l){
+    g.moveTo(cx + (l[0] + l[2])*k, base + l[1]*k);
+    g.arc(cx + l[0]*k, base + l[1]*k, l[2]*k, 0, Math.PI*2);
+  });
+  g.fillStyle = 'rgba(110,200,130,0.35)';
+  g.fill();
+}
+
+function drawPen(pen, um){
+  var c = el.penCv, g = c.getContext('2d');
+  var W = 330, H = 136;
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  g.clearRect(0, 0, W, H);
+
+  var GROUND = 98, CANOPY_TOP = 44, CLOUD_TOP = 3, CLOUD_BASE = 33;
+  var CM_PX = (H - GROUND - 4) / 40;   // 40 cm of soil in the panel
+
+  var sky = g.createLinearGradient(0, 0, 0, GROUND);
+  sky.addColorStop(0, '#0c1729');
+  sky.addColorStop(1, '#18293f');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, GROUND);
+
+  var soil = g.createLinearGradient(0, GROUND, 0, H);
+  soil.addColorStop(0, '#5d4832');
+  soil.addColorStop(1, '#2e2318');
+  g.fillStyle = soil;
+  g.fillRect(0, GROUND, W, H - GROUND);
+  for (var i = 0; i < 90; i++){
+    var sx = (i * 97) % (W - 8) + 4, sy = GROUND + 4 + ((i * 53) % (H - GROUND - 8));
+    g.fillStyle = (i % 3) ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.18)';
+    g.fillRect(sx, sy, 2, 1.5);
+  }
+
+  // canopy
+  [[20,0.68],[58,0.86],[96,0.78],[150,0.92],[196,0.80],[238,0.88],[275,0.62]].forEach(function(t){
+    penTree(g, t[0], GROUND, t[1]);
+  });
+
+  g.strokeStyle = '#8a6c48';
+  g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0, GROUND + 0.5); g.lineTo(W, GROUND + 0.5); g.stroke();
+  g.strokeStyle = 'rgba(80,170,100,0.75)';
+  g.lineWidth = 1;
+  for (var x = 4; x < W; x += 9){
+    g.beginPath();
+    g.moveTo(x, GROUND);
+    g.lineTo(x + ((x % 2) ? -2.5 : 2.5), GROUND - 4 - (x % 4));
+    g.stroke();
+  }
+
+  // cloud deck. Drawn as one merged silhouette, never as a heap of circles.
+  var opaque = pen.cloud < 0.5;
+  if (opaque){
+    var cg = g.createLinearGradient(0, CLOUD_TOP, 0, CLOUD_BASE);
+    cg.addColorStop(0, 'rgba(241,245,249,0.96)');
+    cg.addColorStop(0.62, 'rgba(203,213,225,0.9)');
+    cg.addColorStop(1, 'rgba(148,163,184,0.82)');
+    cloudPath(g, 0, CLOUD_BASE);
+    g.fillStyle = cg;
+    g.fill();
+    g.save();
+    cloudPath(g, 0, CLOUD_BASE);
+    g.clip();
+    g.fillStyle = 'rgba(100,116,139,0.3)';
+    g.fillRect(0, CLOUD_BASE - 6, W, 6);
+    g.restore();
+  } else {
+    // outline only: fill a grown copy, then cut the interior back out with the sky
+    cloudPath(g, 1.3, CLOUD_BASE);
+    g.fillStyle = 'rgba(203,213,225,0.5)';
+    g.fill();
+    cloudPath(g, 0, CLOUD_BASE);
+    g.fillStyle = sky;
+    g.fill();
+    cloudPath(g, 0, CLOUD_BASE);
+    g.fillStyle = 'rgba(203,213,225,0.08)';
+    g.fill();
+  }
+
+  // how far down it gets
+  var stopY, label;
+  if (opaque){
+    stopY = CLOUD_BASE - 2;      // the cloud top is exactly what it does measure
+    label = 'cloud top, and no further';
+  } else {
+    stopY = CANOPY_TOP + pen.canopy * (GROUND - CANOPY_TOP);
+    label = pen.target;
+    if (pen.canopy > 0.93 && pen.soilCm){
+      stopY = GROUND + Math.min(H - GROUND - 6, pen.soilCm[1] * CM_PX);
+      label = rnd(pen.soilCm[0], 1) + ' to ' + rnd(pen.soilCm[1], 1) + ' cm into soil';
+    }
+  }
+
+  // the incoming wave, as a beam down the middle
+  var bx = 150;
+  var beam = g.createLinearGradient(0, 0, 0, stopY);
+  beam.addColorStop(0, 'rgba(250,204,21,0.42)');
+  beam.addColorStop(1, 'rgba(250,204,21,0.06)');
+  g.fillStyle = beam;
+  g.beginPath();
+  g.moveTo(bx - 9, 0);
+  g.lineTo(bx + 9, 0);
+  g.lineTo(bx + 4, stopY);
+  g.lineTo(bx - 4, stopY);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = 'rgba(253,224,71,0.85)';
+  g.lineWidth = 1.4;
+  g.beginPath(); g.moveTo(bx, 0); g.lineTo(bx, stopY); g.stroke();
+
+  // everything it never reaches goes dark
+  g.fillStyle = 'rgba(3,8,17,0.76)';
+  g.fillRect(0, stopY, W, H - stopY);
+
+  g.strokeStyle = '#facc15';
+  g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0, stopY + 0.5); g.lineTo(W, stopY + 0.5); g.stroke();
+  g.fillStyle = '#facc15';
+  g.beginPath();
+  g.moveTo(bx, stopY);
+  g.lineTo(bx - 5, stopY - 7);
+  g.lineTo(bx + 5, stopY - 7);
+  g.closePath();
+  g.fill();
+
+  // stop label, always on its own dark chip so it reads over cloud or canopy
+  var ly = stopY > GROUND ? GROUND - 9 : stopY + 11;
+  g.font = '600 10px system-ui,sans-serif';
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  var lw = g.measureText(label).width;
+  g.fillStyle = 'rgba(3,8,17,0.85)';
+  g.fillRect(4, ly - 8, lw + 8, 16);
+  g.fillStyle = '#fde68a';
+  g.fillText(label, 8, ly);
+
+  // layer names, dimmed where the wave never got
+  g.font = '9.5px system-ui,sans-serif';
+  g.textAlign = 'right';
+  g.textBaseline = 'middle';
+  [['cloud', (CLOUD_TOP + CLOUD_BASE)/2], ['canopy', 54], ['trunks', 88],
+   ['ground', GROUND + 6], ['soil', GROUND + 24]].forEach(function(l){
+    g.fillStyle = l[1] < stopY ? 'rgba(203,213,225,0.9)' : 'rgba(148,163,184,0.38)';
+    g.fillText(l[0], W - 5, l[1]);
+  });
+
+  if (stopY > GROUND){
+    g.strokeStyle = 'rgba(250,204,21,0.45)';
+    g.fillStyle = 'rgba(253,224,71,0.75)';
+    g.font = '8px ' + MONO;
+    g.textAlign = 'left';
+    g.lineWidth = 1;
+    [10, 20, 30].forEach(function(cm){
+      var yy = GROUND + cm * CM_PX;
+      if (yy > H - 3) return;
+      g.beginPath(); g.moveTo(4, yy); g.lineTo(10, yy); g.stroke();
+      g.fillText(cm, 12, yy + 2.5);
+    });
+    g.fillText('cm', 12, GROUND + 6);
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function drawScale(um){
+  var c = el.scaleCv, g = c.getContext('2d');
+  var W = 204, H = 62;
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(2,6,23,0.4)';
+  g.fillRect(0, 0, W, H);
+
+  var obj = nearestObject(um);
+  var boxW = W - 24;
+  var pxPerUm = boxW / Math.max(3 * um, obj[0] * 1.15);
+  var lamPx = um * pxPerUm;
+  var objPx = obj[0] * pxPerUm;
+
+  g.strokeStyle = lamColor(um);
+  g.lineWidth = 1.6;
+  g.beginPath();
+  for (var x = 0; x <= boxW; x++){
+    var y = 20 - Math.sin(x / lamPx * Math.PI * 2) * 9;
+    if (x === 0) g.moveTo(12 + x, y); else g.lineTo(12 + x, y);
+  }
+  g.stroke();
+
+  g.strokeStyle = 'rgba(226,232,240,0.55)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(12, 36); g.lineTo(12, 44);
+  g.moveTo(12, 40); g.lineTo(12 + Math.min(objPx, boxW), 40);
+  g.moveTo(12 + Math.min(objPx, boxW), 36); g.lineTo(12 + Math.min(objPx, boxW), 44);
+  g.stroke();
+
+  g.font = '9px system-ui,sans-serif';
+  g.fillStyle = '#cbd5e1';
+  g.textAlign = 'left';
+  g.textBaseline = 'top';
+  g.fillText(obj[1] + ', ' + obj[2], 12, 46);
+
+  g.setTransform(1, 0, 0, 1, 0, 0);
+
+  el.scaleCap.innerHTML = um >= 1000
+    ? '<b>One wavelength</b> against something its own size. Radar scatters hardest off objects near its own wavelength, and slips past anything much smaller.'
+    : '<b>One wavelength</b> against something its own size. At this scale, light is scattered by molecules, dust and droplets in the air.';
+  el.penCap.innerHTML = penetration(um).note;
+}
+
+/* ==========================================================================
+   Interaction
+   ========================================================================== */
+var hintEl = document.getElementById('hint');
+var hintGone = false;
+function hideHint(){
+  if (hintGone) return;
+  hintGone = true;
+  hintEl.classList.add('gone');
+  setTimeout(function(){ hintEl.style.display = 'none'; }, 500);
+}
+
+var ovWin = null, ovBox = null, tbEl = null;
+function buildOverview(){
+  ovBox = document.getElementById('overview');
+  ovWin = document.getElementById('ov-win');
+  tbEl = document.getElementById('toolbar');
+  var stops = [], n = 72;
+  var l0 = Math.log10(DOM_LO), l1 = Math.log10(DOM_HI);
+  for (var i = 0; i <= n; i++){
+    stops.push(lamColor(Math.pow(10, l0 + (l1 - l0) * i / n)) + ' ' + (i / n * 100).toFixed(1) + '%');
+  }
+  ovBox.style.background = 'linear-gradient(to right,' + stops.join(',') + ')';
+
+  function jump(e){
+    var r = ovBox.getBoundingClientRect();
+    var f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    var span = Math.log10(view.hi) - Math.log10(view.lo);
+    var c = l0 + (l1 - l0) * f;
+    animateTo(Math.pow(10, c - span/2), Math.pow(10, c + span/2), 260);
+    hideHint();
+  }
+  ovBox.addEventListener('pointerdown', function(e){
+    ovBox.setPointerCapture(e.pointerId);
+    ovBox.dataset.drag = '1';
+    jump(e);
+  });
+  ovBox.addEventListener('pointermove', function(e){ if (ovBox.dataset.drag === '1') jump(e); });
+  ovBox.addEventListener('pointerup', function(){ ovBox.dataset.drag = '0'; });
+  ovBox.addEventListener('pointercancel', function(){ ovBox.dataset.drag = '0'; });
+}
+
+function updateToolbar(){
+  if (!ovWin) return;
+  var l0 = Math.log10(DOM_LO), l1 = Math.log10(DOM_HI), full = l1 - l0;
+  var a = (Math.log10(view.lo) - l0) / full, b = (Math.log10(view.hi) - l0) / full;
+  ovWin.style.left = (a * 100) + '%';
+  ovWin.style.width = Math.max(0.4, (b - a) * 100) + '%';
+  var resetBtn = document.getElementById('tb-full');
+  resetBtn.disabled = (b - a) > 0.999;
+  resetBtn.textContent = PAD_L < 96 ? 'Full view' : 'Full spectrum';
+  tbEl.style.paddingLeft = PAD_L + 'px';
+  tbEl.style.paddingRight = PAD_R + 'px';
+}
+
+function zoomAt(px, factor){
+  px = Math.max(plotX0, Math.min(plotX1, px));
+  var lc = Math.log10(lamOf(px));
+  var l0 = Math.log10(view.lo), l1 = Math.log10(view.hi);
+  setView(lc + (l0 - lc) * factor, lc + (l1 - lc) * factor);
+  draw();
+}
+
+function zoneAt(x, y){
+  for (var i = hitZones.length - 1; i >= 0; i--){
+    var z = hitZones[i];
+    if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
+  }
+  return null;
+}
+
+function zoomToRange(lo, hi, minDec){
+  var l0 = Math.log10(lo), l1 = Math.log10(hi);
+  var pad = Math.max((l1 - l0) * 0.1, 0.015);
+  l0 -= pad; l1 += pad;
+  if (minDec && (l1 - l0) < minDec){
+    var c = (l0 + l1) / 2;
+    l0 = c - minDec/2; l1 = c + minDec/2;
+  }
+  hideHint();
+  animateTo(Math.pow(10, l0), Math.pow(10, l1), 420);
+}
+
+function hitTest(x, y){
+  for (var i = hitBands.length - 1; i >= 0; i--){
+    var b = hitBands[i];
+    if (x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1) return b;
+  }
+  return null;
+}
+
+function showTip(hit, x, y){
+  var b = hit.band;
+  var mid = (b.lo + b.hi) / 2;
+  var wide = b.hi - b.lo;
+  var html = '<div class="tt-mission">' + esc(hit.mission.name) + ' · ' + esc(hit.mission.sub) + '</div>'
+    + '<div class="tt-title"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'
+    + hit.col + '"></span>' + esc(b.label) + '  ' + esc(b.name) + '</div>'
+    + '<div class="tt-line"><span class="tt-mono">' + fmtLam(mid) + '</span> centre, '
+    + '<span class="tt-mono">' + fmtLam(wide) + '</span> wide';
+  if (mid >= 1000) html += ' <span class="tt-mono">(' + fmtFreq(mid) + ')</span>';
+  html += '</div><div class="tt-line">Pixel: <b>' + esc(b.res) + '</b></div>'
+    + '<div class="tt-use">' + esc(b.use) + '</div>';
+  tipEl.innerHTML = html;
+  tipEl.style.display = 'block';
+  var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  var lx = x + 16, ly = y + 16;
+  if (lx + tw > size.w - 8) lx = x - tw - 14;
+  if (ly + th > size.h - 8) ly = y - th - 14;
+  tipEl.style.left = Math.max(6, lx) + 'px';
+  tipEl.style.top = Math.max(6, ly) + 'px';
+}
+
+function showZoneTip(z, x, y){
+  var html = '<div class="tt-mission">click to zoom in</div>'
+    + '<div class="tt-title">' + esc(z.name) + '</div>'
+    + '<div class="tt-line"><span class="tt-mono">' + fmtLam(z.lo) + '</span> to '
+    + '<span class="tt-mono">' + fmtLam(z.hi) + '</span></div>'
+    + (z.note ? '<div class="tt-line">' + esc(z.note) + '</div>' : '');
+  tipEl.innerHTML = html;
+  tipEl.style.display = 'block';
+  var tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  var lx = x + 16, ly = y + 16;
+  if (lx + tw > size.w - 8) lx = x - tw - 14;
+  if (ly + th > size.h - 8) ly = y - th - 14;
+  tipEl.style.left = Math.max(6, lx) + 'px';
+  tipEl.style.top = Math.max(6, ly) + 'px';
+}
+
+function updateHover(x, y){
+  mouse.x = x; mouse.y = y;
+  if (!probe.pinned){
+    probe.lam = Math.max(view.lo, Math.min(view.hi, lamOf(x)));
+    probe.x = x;
+  }
+  var hit = hitTest(x, y);
+  hoverBand = hit;
+  var zone = hit ? null : zoneAt(x, y);
+  cv.style.cursor = zone ? 'pointer' : '';
+  if (hit) showTip(hit, x, y);
+  else if (zone) showZoneTip(zone, x, y);
+  else tipEl.style.display = 'none';
+  draw();
+  updateProbeBar();
+}
+
+var pointers = {};
+var dragState = null, pinch = null;
+
+cv.addEventListener('pointerdown', function(e){
+  cv.setPointerCapture(e.pointerId);
+  pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
+  var ids = Object.keys(pointers);
+  if (ids.length === 1){
+    var rect0 = cv.getBoundingClientRect();
+    var pan = e.shiftKey || e.button === 1 || e.pointerType === 'touch';
+    dragState = {
+      startX:e.clientX, moved:0, pan:pan,
+      l0:Math.log10(view.lo), l1:Math.log10(view.hi)
+    };
+    if (!pan){
+      var sx = Math.max(plotX0, Math.min(plotX1, e.clientX - rect0.left));
+      sel = { x0:sx, x1:sx };
+    }
+  } else if (ids.length === 2){
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    var rect = cv.getBoundingClientRect();
+    pinch = {
+      d: Math.max(12, Math.abs(a.x - b.x)),
+      mid: (a.x + b.x) / 2 - rect.left,
+      l0: Math.log10(view.lo), l1: Math.log10(view.hi)
+    };
+    dragState = null;
+    sel = null;
+  }
+  hideHint();
+});
+
+cv.addEventListener('pointermove', function(e){
+  var rect = cv.getBoundingClientRect();
+  var lx = e.clientX - rect.left, ly = e.clientY - rect.top;
+  if (pointers[e.pointerId]) pointers[e.pointerId] = { x:e.clientX, y:e.clientY };
+  var ids = Object.keys(pointers);
+
+  if (ids.length === 2 && pinch){
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    var d = Math.max(12, Math.abs(a.x - b.x));
+    var factor = Math.max(0.1, Math.min(10, pinch.d / d));
+    var lc = pinch.l0 + (pinch.mid - plotX0) / plotW * (pinch.l1 - pinch.l0);
+    setView(lc + (pinch.l0 - lc) * factor, lc + (pinch.l1 - lc) * factor);
+    draw();
+    return;
+  }
+  if (dragState && ids.length === 1){
+    var dx = e.clientX - dragState.startX;
+    dragState.moved = Math.max(dragState.moved, Math.abs(dx));
+    if (dragState.pan && dragState.moved > 2){
+      cv.classList.add('dragging');
+      tipEl.style.display = 'none';
+      var span = dragState.l1 - dragState.l0;
+      var shift = -dx / plotW * span;
+      setView(dragState.l0 + shift, dragState.l1 + shift);
+      draw();
+      return;
+    }
+    if (!dragState.pan && sel){
+      sel.x1 = Math.max(plotX0, Math.min(plotX1, lx));
+      if (dragState.moved > 2) tipEl.style.display = 'none';
+      updateHover(lx, ly);
+      return;
+    }
+  }
+  updateHover(lx, ly);
+});
+
+function endPointer(e){
+  var rect = cv.getBoundingClientRect();
+  if (sel && dragState && !dragState.pan && Math.abs(sel.x1 - sel.x0) >= 6){
+    var lo = lamOf(Math.min(sel.x0, sel.x1)), hi = lamOf(Math.max(sel.x0, sel.x1));
+    sel = null;
+    hideHint();
+    animateTo(lo, hi, 360);
+    delete pointers[e.pointerId];
+    dragState = null;
+    cv.classList.remove('dragging');
+    return;
+  }
+  sel = null;
+  if (dragState && dragState.moved < 4 && pointers[e.pointerId]){
+    var lx = e.clientX - rect.left, ly = e.clientY - rect.top;
+    var zone = zoneAt(lx, ly);
+    if (zone && !hitTest(lx, ly)){
+      delete pointers[e.pointerId];
+      dragState = null;
+      cv.classList.remove('dragging');
+      tipEl.style.display = 'none';
+      zoomToRange(zone.lo, zone.hi, zone.minDec);
+      return;
+    }
+    if (probe.pinned){
+      probe.pinned = false;
+      probe.lam = lamOf(lx);
+    } else {
+      probe.lam = lamOf(lx);
+      probe.pinned = true;
+    }
+    probe.x = lx;
+    updateHover(lx, ly);
+  }
+  delete pointers[e.pointerId];
+  if (Object.keys(pointers).length < 2) pinch = null;
+  if (Object.keys(pointers).length === 0){ dragState = null; cv.classList.remove('dragging'); }
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', function(e){
+  delete pointers[e.pointerId];
+  dragState = null; pinch = null; sel = null;
+  cv.classList.remove('dragging');
+  draw();
+});
+cv.addEventListener('dblclick', function(e){
+  var rect = cv.getBoundingClientRect();
+  zoomAt(e.clientX - rect.left, 2.5);
+});
+cv.addEventListener('pointerleave', function(){
+  tipEl.style.display = 'none';
+  hoverBand = null;
+  mouse.x = mouse.y = null;
+  cv.style.cursor = '';
+  draw();
+});
+
+cv.addEventListener('wheel', function(e){
+  e.preventDefault();
+  hideHint();
+  var rect = cv.getBoundingClientRect();
+  var dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  var f = Math.max(0.25, Math.min(4, Math.exp(dy * 0.0016)));
+  zoomAt(e.clientX - rect.left, f);
+}, { passive:false });
+
+cv.tabIndex = 0;
+cv.addEventListener('keydown', function(e){
+  var mid = (plotX0 + plotX1) / 2;
+  var l0 = Math.log10(view.lo), l1 = Math.log10(view.hi), span = l1 - l0;
+  if (e.key === '+' || e.key === '='){ zoomAt(mid, 0.7); e.preventDefault(); }
+  else if (e.key === '-' || e.key === '_'){ zoomAt(mid, 1.4); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft'){ setView(l0 - span*0.1, l1 - span*0.1); draw(); e.preventDefault(); }
+  else if (e.key === 'ArrowRight'){ setView(l0 + span*0.1, l1 + span*0.1); draw(); e.preventDefault(); }
+  else if (e.key === '0'){ animateTo(DOM_LO, DOM_HI); e.preventDefault(); }
+});
+
+/* ==========================================================================
+   Sidebar
+   ========================================================================== */
+function buildPresets(){
+  var box = document.getElementById('presets');
+  PRESETS.forEach(function(p){
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = p.n;
+    b.onclick = function(){ hideHint(); animateTo(p.lo, p.hi); };
+    box.appendChild(b);
+  });
+}
+
+function buildLayers(){
+  var box = document.getElementById('layer-list');
+  var defs = [
+    ['atmos',   'Atmospheric transmission'],
+    ['reflect', 'Surface reflectance'],
+    ['planck',  'Sunlight vs Earth heat']
+  ];
+  defs.forEach(function(d){
+    var lab = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = layers[d[0]];
+    cb.onchange = function(){ layers[d[0]] = cb.checked; draw(); };
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(d[1]));
+    box.appendChild(lab);
+  });
+}
+
+function buildMissions(){
+  var box = document.getElementById('mission-list');
+  MISSIONS.forEach(function(m){
+    var lab = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = m.on;
+    cb.dataset.id = m.id;
+    cb.onchange = function(){ m.on = cb.checked; draw(); updateProbeBar(); };
+    var sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.textContent = m.bands.length + (m.bands.length === 1 ? ' band' : ' bands');
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(m.name));
+    lab.appendChild(sub);
+    box.appendChild(lab);
+  });
+}
+
+function buildSurfaces(){
+  var box = document.getElementById('surface-list');
+  SURFACES.forEach(function(s){
+    var lab = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = s.on;
+    cb.onchange = function(){ s.on = cb.checked; draw(); updateProbeBar(); updateIndexUI(); };
+    var sw = document.createElement('span');
+    sw.className = 'sw';
+    sw.style.background = s.c;
+    lab.appendChild(cb);
+    lab.appendChild(sw);
+    lab.appendChild(document.createTextNode(s.name));
+    box.appendChild(lab);
+  });
+}
+
+function buildIndices(){
+  var sel = document.getElementById('index-select');
+  INDICES.forEach(function(i){
+    var o = document.createElement('option');
+    o.value = i.id;
+    o.textContent = i.name;
+    sel.appendChild(o);
+  });
+  sel.onchange = function(){ setIndex(sel.value); };
+}
+
+function setIndex(id){
+  activeIndex = null;
+  INDICES.forEach(function(i){ if (i.id === id && i.a) activeIndex = i; });
+  document.getElementById('index-select').value = id;
+  updateIndexUI();
+  draw();
+}
+
+function updateIndexUI(){
+  var note = document.getElementById('index-note');
+  var vals = document.getElementById('index-vals');
+  if (!activeIndex){ note.innerHTML = ''; vals.innerHTML = ''; return; }
+  note.innerHTML = '<span class="iv-formula">' + esc(activeIndex.expr) + '</span>'
+    + esc(activeIndex.note);
+  var html = '';
+  SURFACES.forEach(function(s){
+    if (!s.on) return;
+    var a = sampleAt(s.d, activeIndex.a), b = sampleAt(s.d, activeIndex.b);
+    if (a === null || b === null) return;
+    var v = (a + b) === 0 ? 0 : (a - b) / (a + b);
+    var w = Math.abs(v) * 50;
+    var left = v >= 0 ? 50 : 50 - w;
+    html += '<div class="iv-row"><span class="iv-name" style="color:' + s.c + '">' + esc(s.name) + '</span>'
+      + '<span class="iv-track"><span class="iv-fill" style="left:' + left + '%;width:' + w + '%;background:' + s.c + '"></span></span>'
+      + '<span class="iv-num">' + (v >= 0 ? '+' : '') + v.toFixed(2) + '</span></div>';
+  });
+  vals.innerHTML = html + '<div class="cap" style="margin-top:9px">Values read off the stylised curves above, so treat them as shapes, not measurements.</div>';
+}
+
+var sidebar = document.getElementById('sidebar');
+document.getElementById('sidebar-close').onclick = function(){
+  sidebar.classList.add('hidden');
+  document.getElementById('sidebar-open').classList.add('show');
+  setTimeout(resize, 0);
+};
+document.getElementById('sidebar-open').onclick = function(){
+  sidebar.classList.remove('hidden');
+  document.getElementById('sidebar-open').classList.remove('show');
+  setTimeout(resize, 0);
+};
+function clearZoom(){
+  probe.pinned = false;
+  hideHint();
+  animateTo(DOM_LO, DOM_HI, 420);
+}
+document.getElementById('tb-full').onclick = clearZoom;
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  if (tourIdx >= 0) endTour();
+  clearZoom();
+});
+
+/* ==========================================================================
+   Tour
+   ========================================================================== */
+var TOUR = [
+  { t:'Six powers of ten, one line',
+    b:'Wavelength runs from 300 nm of ultraviolet on the left to 1.2 m of radio on the right, and the axis is logarithmic, so each step right is ten times longer. Everything your eye can do happens inside the painted stripe. Everything a radar satellite does happens far to the right, where one wavelength is the size of your hand.',
+    v:[DOM_LO, DOM_HI], l:{atmos:true, reflect:true, planck:false}, idx:'none' },
+  { t:'True colour is three narrow slices',
+    b:'Blue, green and red are not continuous coverage. They are three samples of a continuum, 30 to 70 nm wide, chosen to line up roughly with human vision. Landsat and Sentinel-2 picked slightly different slices, which is one reason their colour images never match exactly.',
+    v:[0.40, 0.78], l:{atmos:true, reflect:true, planck:false}, idx:'none' },
+  { t:'The red edge',
+    b:'Between 700 and 750 nm a leaf goes from reflecting 3% of the light to nearly 50%, the steepest feature in the natural spectrum. Chlorophyll absorbs the red; the spongy tissue behind it throws back the near infrared it cannot use. NDVI is that cliff measured with two bands, and Sentinel-2 puts three narrow bands on the slope itself to read crop stress.',
+    v:[0.60, 0.95], l:{atmos:true, reflect:true, planck:false}, idx:'ndvi' },
+  { t:'Water is the exception',
+    b:'Every other common surface gets brighter going into the near infrared. Water gets darker, and by 850 nm it is essentially black. That single reversal is what makes shorelines, lakes and floods so easy to map, and it is all NDWI is doing.',
+    v:[0.40, 1.05], l:{atmos:true, reflect:true, planck:false}, idx:'ndwi' },
+  { t:'SWIR: moisture, minerals, burns',
+    b:'Liquid water absorbs hard at 1.4 and 1.9 µm, and the SWIR bands sit in the two windows either side. A wet canopy is dark here, a burnt one is bright, which is the basis of burn severity mapping. Snow is almost black at 1.6 µm while cloud stays bright, which is how the two are told apart.',
+    v:[1.25, 2.6], l:{atmos:true, reflect:true, planck:false}, idx:'nbr' },
+  { t:'The band designed to see nothing',
+    b:'Sentinel-2 B10 and Landsat B9 sit at 1.38 µm, inside a water vapour wall where no surface signal survives the round trip. That is the point. Anything bright in that band has to be above most of the atmosphere, so it must be thin cirrus, and the rest of the scene can be corrected for it.',
+    v:[1.2, 1.65], l:{atmos:true, reflect:true, planck:false}, idx:'none' },
+  { t:'Where the Earth glows',
+    b:'Past about 4 µm the heat the Earth radiates outweighs the sunlight it reflects, so the physics of the measurement changes completely. Thermal bands sit in the 8 to 13 µm window between the water vapour and CO2 walls. Landsat flies two of them so the atmosphere in between can be differenced out.',
+    v:[2.5, 16], l:{atmos:true, reflect:false, planck:true}, idx:'none' },
+  { t:'Radar brings its own light',
+    b:'A SAR supplies its own illumination, so night and cloud stop mattering. Look at the widths: an optical band is a percent or more of its own wavelength, while a radar chirp is so pure it draws as a hairline at this scale. That purity is exactly what makes interferometry, and millimetre ground motion, possible.',
+    v:[9000, 1.1e6], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
+  { t:'C, L and P see different forests',
+    b:'A radar wave ignores anything much smaller than itself. Sentinel-1 at 5.5 cm scatters off leaves and small branches, so it reads the top of a canopy. NISAR at 24 cm slips past them to trunks and ground, so it can see water standing under a forest. Biomass at 69 cm is long enough to weigh the trunks. Same forest, three different surfaces.',
+    v:[25000, 9e5], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
+  { t:'Nothing here is free',
+    b:'Every band on this chart is a compromise between what the atmosphere allows through, what the surface actually does, what a detector can hold, and how little light is left once you make a band narrow. Zoom around at will. The empty stretches say as much as the occupied ones.',
+    v:[DOM_LO, DOM_HI], l:{atmos:true, reflect:true, planck:false}, idx:'none' }
+];
+
+var tourIdx = -1;
+var tourEl = document.getElementById('tour-popup');
+function showTour(i){
+  if (i < 0 || i >= TOUR.length){ endTour(); return; }
+  tourIdx = i;
+  var s = TOUR[i];
+  document.getElementById('tour-step').textContent = 'Step ' + (i+1) + ' of ' + TOUR.length;
+  document.getElementById('tour-title').textContent = s.t;
+  document.getElementById('tour-body').textContent = s.b;
+  tourEl.style.display = 'block';
+  document.getElementById('tour-prev').disabled = (i === 0);
+  if (s.l){
+    layers.atmos = s.l.atmos; layers.reflect = s.l.reflect; layers.planck = s.l.planck;
+    document.querySelectorAll('#layer-list input').forEach(function(cb, k){
+      cb.checked = [layers.atmos, layers.reflect, layers.planck][k];
+    });
+  }
+  setIndex(s.idx || 'none');
+  probe.pinned = false;
+  animateTo(s.v[0], s.v[1]);
+  hideHint();
+}
+function endTour(){ tourEl.style.display = 'none'; tourIdx = -1; }
+document.getElementById('tour-btn').onclick = function(){ showTour(0); };
+document.getElementById('tour-next').onclick = function(){ showTour(tourIdx + 1); };
+document.getElementById('tour-prev').onclick = function(){ showTour(tourIdx - 1); };
+document.getElementById('tour-end').onclick = endTour;
+
+/* ==========================================================================
+   Init
+   ========================================================================== */
+buildOverview();
+buildPresets();
+buildLayers();
+buildMissions();
+buildSurfaces();
+buildIndices();
+updateIndexUI();
+
+probe.lam = 0.665;
+probe.pinned = false;
+
+if (window.ResizeObserver){
+  new ResizeObserver(function(){ resize(); }).observe(wrap);
+} else {
+  window.addEventListener('resize', resize);
+}
+resize();
+updateProbeBar();
+
+})();
+</script>
+</body>
+</html>
