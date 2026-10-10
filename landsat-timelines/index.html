@@ -74,6 +74,33 @@
     font: 700 18px/1.4 var(--mono);
   }
 
+  /* While the next frame downloads, dim the stale one. The delay keeps cached frames from flickering. */
+  #frame { transition: opacity 0.15s; }
+  .loading #frame { opacity: 0.35; transition-delay: 0.12s; }
+
+  .loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    border: 3px solid rgba(148, 163, 184, 0.25);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading .loader { opacity: 1; transition: opacity 0.15s 0.12s; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loader { animation: none; border-color: var(--accent); }
+  }
+
   /* ---- Header Panel ---- */
   #header {
     top: 12px;
@@ -402,6 +429,7 @@
     <div class="frame-wrap">
       <img id="frame" alt="">
       <div class="stamp" id="stamp"></div>
+      <div class="loader" aria-hidden="true"></div>
     </div>
   </div>
 
@@ -485,7 +513,8 @@ const fmtDay = d => new Date(d + "T00:00:00").toLocaleDateString(undefined, { mo
 
 const el = id => document.getElementById(id);
 const slider = el("slider");
-let aoi = null, frameIdx = 0, timer = null, speedMs = 250;
+const img = el("frame");
+let aoi = null, frameIdx = 0, timer = null, playing = false, onFrameLoaded = null, speedMs = 250;
 const cache = new Map();
 
 function preload(file) {
@@ -505,8 +534,11 @@ function show(i) {
   frameIdx = Math.max(0, Math.min(aoi.frames.length - 1, i));
   const f = aoi.frames[frameIdx];
   const isMss = f.sensor.startsWith("MSS");
-  el("frame").src = f.file;
-  el("frame").alt = `${aoi.title}, ${fmtMonth(f.month)}`;
+  if (img.getAttribute("src") !== f.file) {
+    img.src = f.file;
+    el("stage").classList.toggle("loading", !img.complete);
+  }
+  img.alt = `${aoi.title}, ${fmtMonth(f.month)}`;
   el("stamp").textContent = fmtMonth(f.month);
   slider.value = monthIndex(f.month);
   el("v-month").textContent = fmtMonth(f.month);
@@ -520,7 +552,8 @@ function show(i) {
   el("v-scenes").textContent = `${f.scenes.length} scene${f.scenes.length === 1 ? "" : "s"}`;
   el("v-scenes").title = f.scenes.join("\n");
   el("v-coverage").textContent = `${(f.coverage * 100).toFixed(0)}%`;
-  for (let k = 1; k <= 3; k++) {
+  // Look further ahead while playing so playback rarely has to wait.
+  for (let k = 1; k <= (playing ? 8 : 3); k++) {
     if (aoi.frames[frameIdx + k]) preload(aoi.frames[frameIdx + k].file);
     if (aoi.frames[frameIdx - k]) preload(aoi.frames[frameIdx - k].file);
   }
@@ -540,16 +573,41 @@ function selectAoi(name, keepMonth) {
   show(month === null ? 0 : nearestFrame(month));
 }
 
-function stop() { clearInterval(timer); timer = null; el("play").innerHTML = "&#9654;&#xFE0E;"; }
-function play() {
-  if (timer) return stop();
-  if (frameIdx === aoi.frames.length - 1) show(0);
-  el("play").innerHTML = "&#10074;&#10074;";
-  timer = setInterval(() => {
+function frameSettled() {
+  el("stage").classList.remove("loading");
+  const fn = onFrameLoaded;
+  onFrameLoaded = null;
+  if (fn) fn();
+}
+img.addEventListener("load", frameSettled);
+img.addEventListener("error", frameSettled);
+
+function stop() {
+  playing = false;
+  clearTimeout(timer);
+  timer = null;
+  onFrameLoaded = null;
+  el("play").innerHTML = "&#9654;&#xFE0E;";
+}
+
+// Advance only once the current frame has actually loaded, so no frame is skipped.
+function scheduleNext() {
+  timer = setTimeout(() => {
     if (frameIdx < aoi.frames.length - 1) show(frameIdx + 1);
     else if (el("loop").checked) show(0);
-    else stop();
+    else return stop();
+    if (img.complete) scheduleNext();
+    else onFrameLoaded = scheduleNext;
   }, speedMs);
+}
+
+function play() {
+  if (playing) return stop();
+  playing = true;
+  if (frameIdx === aoi.frames.length - 1) show(0);
+  el("play").innerHTML = "&#10074;&#10074;";
+  if (img.complete) scheduleNext();
+  else onFrameLoaded = scheduleNext;
 }
 
 slider.max = TOTAL_MONTHS - 1;
@@ -567,7 +625,7 @@ el("speed").addEventListener("click", e => {
   if (!b) return;
   speedMs = Number(b.dataset.ms);
   el("speed").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
-  if (timer) { stop(); play(); }
+  if (playing) { stop(); play(); }
 });
 el("late-summer").onchange = () => { stop(); selectAoi(aoi.name, true); };
 el("toggle-header").onclick = function () {
