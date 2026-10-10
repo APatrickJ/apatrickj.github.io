@@ -607,10 +607,25 @@ function show(i) {
     if (aoi.frames[frameIdx + k]) preload(aoi.frames[frameIdx + k].file);
     if (aoi.frames[frameIdx - k]) preload(aoi.frames[frameIdx - k].file);
   }
+  updateUrl();
 }
 
-function selectAoi(name, keepMonth) {
-  const month = keepMonth && aoi ? monthIndex(aoi.frames[frameIdx].month) : null;
+// Keep the address bar a permalink to the current view. Debounced and paused
+// during playback, since Safari throws if replaceState runs ~100 times in 30 s.
+let urlTimer = null;
+function updateUrl() {
+  clearTimeout(urlTimer);
+  if (playing) return;
+  urlTimer = setTimeout(() => {
+    const params = new URLSearchParams({ site: aoi.name, month: aoi.frames[frameIdx].month });
+    if (el("late-summer").checked) params.set("summer", "1");
+    try { history.replaceState(null, "", `${location.pathname}?${params}`); } catch (e) {}
+  }, 300);
+}
+
+function selectAoi(name, keepMonth, startMonth) {
+  const month = startMonth ? monthIndex(startMonth)
+    : keepMonth && aoi ? monthIndex(aoi.frames[frameIdx].month) : null;
   const base = MANIFESTS.find(m => m.name === name);
   const lateSummer = base.frames.filter(f => ["08", "09", "10"].includes(f.month.slice(5, 7)));
   aoi = { ...base, frames: el("late-summer").checked && lateSummer.length ? lateSummer : base.frames };
@@ -644,6 +659,7 @@ function stop() {
   timer = null;
   onFrameLoaded = null;
   el("play").innerHTML = "&#9654;&#xFE0E;";
+  if (aoi) updateUrl();
 }
 
 // Advance only once the current frame has actually loaded, so no frame is skipped.
@@ -697,9 +713,14 @@ document.addEventListener("keydown", e => {
   else if (e.key === " ") { e.preventDefault(); play(); }
 });
 
+// A shared link wins over the last site this browser viewed.
+const linked = new URLSearchParams(location.search);
+const linkedMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(linked.get("month") || "") ? linked.get("month") : null;
 let initial = MANIFESTS[0].name;
-try { const saved = localStorage.getItem("aoi"); if (MANIFESTS.some(m => m.name === saved)) initial = saved; } catch (e) {}
-selectAoi(initial, false);
+if (MANIFESTS.some(m => m.name === linked.get("site"))) initial = linked.get("site");
+else try { const saved = localStorage.getItem("aoi"); if (MANIFESTS.some(m => m.name === saved)) initial = saved; } catch (e) {}
+el("late-summer").checked = linked.get("summer") === "1";
+selectAoi(initial, false, linkedMonth);
 </script>
 </body>
 </html>
