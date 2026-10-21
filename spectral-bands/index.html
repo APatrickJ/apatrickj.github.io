@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Spectrum Satellites See</title>
-<meta name="description" content="An interactive, zoomable map of the electromagnetic spectrum used by Earth-observing satellites: every Sentinel-2, Landsat, Sentinel-1 and NISAR band drawn to scale, with surface reflectance curves, atmospheric windows, and what each wavelength can see through.">
+<meta name="description" content="An interactive, zoomable map of the electromagnetic spectrum used by Earth-observing satellites: every Sentinel-2, Landsat, GOES, Sentinel-1 and NISAR band drawn to scale, with surface reflectance curves, atmospheric windows, and what each wavelength can see through.">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
@@ -358,7 +358,7 @@ select option{background:#0f172a;color:var(--t2)}
 
     <p class="fineprint">
       Band positions and widths come from published instrument specifications (Sentinel-2A MSI,
-      Landsat 8/9 OLI-2 and TIRS-2, Sentinel-1 C-SAR, NISAR L and S band). Radar wavelengths are
+      Landsat 8/9 OLI-2 and TIRS-2, GOES-R ABI and GLM, Sentinel-1 C-SAR, NISAR L and S band). Radar wavelengths are
       computed from centre frequency and chirp bandwidth. The reflectance, emissivity, atmospheric
       transmission and penetration curves are stylised: they carry the shapes that drive band
       design, not laboratory measurements.
@@ -638,6 +638,28 @@ var MISSIONS = [
     ]
   },
   {
+    id:'goes', name:'GOES-R', sub:'ABI + GLM', on:true,
+    bands:[
+      band('B1','Blue',              rng(0.45,0.49),   '1 km',   'Aerosols, smoke and haze over land and sea. The blue of true-colour imagery.'),
+      band('B2','Red',               rng(0.59,0.69),   '0.5 km', 'The sharpest ABI band. Daytime cloud, fog and storm-top texture in half-kilometre detail.'),
+      band('B3','Veggie',            rng(0.846,0.885), '1 km',   'Vegetation, burn scars and flooding. ABI has no green band, so true-colour imagery builds a synthetic green from this band, red and blue.'),
+      band('B4','Cirrus',            rng(1.371,1.386), '2 km',   'Thin high cirrus by day, seen from inside a water vapour wall, the same trick as Landsat and Sentinel-2.'),
+      band('B5','Snow/ice',          rng(1.58,1.64),   '1 km',   'Snow and ice go dark while water cloud stays bright, so the two separate cleanly.'),
+      band('B6','Cloud particle size', rng(2.225,2.275), '2 km', 'Cloud droplet and ice crystal size. Also picks up the hottest fires.'),
+      band('B7','Shortwave window',  rng(3.80,4.00),   '2 km',   'Sees reflected sunlight and emitted heat together. Fire hot spots, and fog and low cloud at night.'),
+      band('B8','Upper-level water vapour', rng(5.77,6.60), '2 km', 'Inside the water vapour wall on purpose. It sees moisture in the upper troposphere and never the ground.'),
+      band('B9','Mid-level water vapour',   rng(6.75,7.15), '2 km', 'Further down the wall, so it sees deeper: moisture in the middle troposphere.'),
+      band('B10','Low-level water vapour',  rng(7.24,7.44), '2 km', 'At the edge of the wall, reaching lowest. Lower-level moisture and volcanic SO₂ plumes.'),
+      band('B11','Cloud-top phase',  rng(8.3,8.7),     '2 km',   'Tells ice cloud tops from liquid ones. Also dust and volcanic SO₂.'),
+      band('B12','Ozone',            rng(9.42,9.80),   '2 km',   'Parked on the 9.6 µm ozone notch. Total ozone and upper-level features such as jet streaks.'),
+      band('B13','Clean longwave IR', rng(10.1,10.6),  '2 km',   'The cleanest window, with the least water vapour. Cloud-top and surface temperature, day and night.'),
+      band('B14','Longwave IR',      rng(10.8,11.6),   '2 km',   'The classic weather satellite infrared channel, with decades of continuity behind it.'),
+      band('B15','Dirty longwave IR', rng(11.8,12.8),  '2 km',   'A little more water vapour absorption. Differenced with B13 to pick out dust, ash and low-level moisture.'),
+      band('B16','CO₂ longwave IR',  rng(13.0,13.6),   '2 km',   'On the shoulder of the CO₂ wall. Cloud-top height and air temperature aloft.'),
+      band('GLM','Lightning, 777.4 nm', ctr(777.4,1),  '8 km',   'Geostationary Lightning Mapper. A 1 nm filter on the oxygen emission line that lightning gives off, read 500 times a second, day and night.')
+    ]
+  },
+  {
     id:'s1', name:'Sentinel-1', sub:'C-SAR, 5.405 GHz', on:true,
     bands:[
       band('IW','C-band, VV+VH', radarBand(5.405,100), '5 x 20 m', 'All-weather day and night radar. Floods, sea ice, ships, deforestation alerts, and ground deformation by interferometry.')
@@ -819,6 +841,7 @@ var PRESETS = [
   { n:'Red edge',      lo:0.60,   hi:0.95 },
   { n:'SWIR',         lo:1.3,     hi:2.6 },
   { n:'Thermal',      lo:7,       hi:15 },
+  { n:'Weather IR',   lo:3.4,     hi:14.5 },
   { n:'Radar',        lo:9000,    hi:1.1e6 },
   { n:'C vs L vs P',  lo:25000,   hi:9e5 }
 ];
@@ -2687,11 +2710,14 @@ var TOUR = [
     b:'Liquid water absorbs hard at 1.4 and 1.9 µm, and the SWIR bands sit in the two windows either side. A wet canopy is dark here, a burnt one is bright, which is the basis of burn severity mapping. Snow is almost black at 1.6 µm while cloud stays bright, which is how the two are told apart.',
     v:[1.25, 2.6], l:{atmos:true, reflect:true, planck:false}, idx:'nbr' },
   { t:'The band designed to see nothing',
-    b:'Sentinel-2 B10 and Landsat B9 sit at 1.38 µm, inside a water vapour wall where no surface signal survives the round trip. That is the point. Anything bright in that band has to be above most of the atmosphere, so it must be thin cirrus, and the rest of the scene can be corrected for it.',
+    b:'Sentinel-2 B10, Landsat B9 and GOES B4 sit at 1.38 µm, inside a water vapour wall where no surface signal survives the round trip. That is the point. Anything bright in that band has to be above most of the atmosphere, so it must be thin cirrus, and the rest of the scene can be corrected for it.',
     v:[1.2, 1.65], l:{atmos:true, reflect:true, planck:false}, idx:'none' },
   { t:'Where the Earth glows',
     b:'Past about 4 µm the heat the Earth radiates outweighs the sunlight it reflects, so the physics of the measurement changes completely. Thermal bands sit in the 8 to 13 µm window between the water vapour and CO2 walls. Landsat flies two of them so the atmosphere in between can be differenced out.',
     v:[2.5, 16], l:{atmos:true, reflect:false, planck:true}, idx:'none' },
+  { t:'Weather satellites aim at the walls',
+    b:'GOES hangs 35,786 km above the equator and images a whole hemisphere every ten minutes. Its imager does what a land mission never would: three bands sit inside the 6 to 7.5 µm water vapour wall on purpose, each at a different depth into it, so they map moisture at different heights instead of the ground. Two more follow the same idea: B12 is placed where ozone absorbs, so it can measure ozone, and B16 is placed where CO2 starts to absorb, which helps estimate how high cloud tops are.',
+    v:[3.4, 14.5], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
   { t:'Radar brings its own light',
     b:'A SAR supplies its own illumination, so night and cloud stop mattering. Look at the widths: an optical band is a percent or more of its own wavelength, while a radar chirp is so pure it draws as a hairline at this scale. That purity is exactly what makes interferometry, and millimetre ground motion, possible.',
     v:[9000, 1.1e6], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
