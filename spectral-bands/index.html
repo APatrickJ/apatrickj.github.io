@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Spectrum Satellites See</title>
-<meta name="description" content="An interactive, zoomable map of the electromagnetic spectrum used by Earth-observing satellites: every Sentinel-2, Landsat, GOES, Sentinel-1 and NISAR band drawn to scale, with surface reflectance curves, atmospheric windows, and what each wavelength can see through.">
+<meta name="description" content="An interactive, zoomable map of the electromagnetic spectrum used by Earth-observing satellites: every Sentinel-2, Landsat, GOES, VIIRS, Sentinel-1 and NISAR band drawn to scale, with surface reflectance curves, atmospheric windows, and what each wavelength can see through.">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
@@ -358,7 +358,7 @@ select option{background:#0f172a;color:var(--t2)}
 
     <p class="fineprint">
       Band positions and widths come from published instrument specifications (Sentinel-2A MSI,
-      Landsat 8/9 OLI-2 and TIRS-2, GOES-R ABI and GLM, Sentinel-1 C-SAR, NISAR L and S band). Radar wavelengths are
+      Landsat 8/9 OLI-2 and TIRS-2, GOES-R ABI and GLM, JPSS VIIRS, Sentinel-1 C-SAR, NISAR L and S band). Radar wavelengths are
       computed from centre frequency and chirp bandwidth. The reflectance, emissivity, atmospheric
       transmission and penetration curves are stylised: they carry the shapes that drive band
       design, not laboratory measurements.
@@ -657,6 +657,39 @@ var MISSIONS = [
       band('B15','Dirty longwave IR', rng(11.8,12.8),  '2 km',   'A little more water vapour absorption. Differenced with B13 to pick out dust, ash and low-level moisture.'),
       band('B16','CO₂ longwave IR',  rng(13.0,13.6),   '2 km',   'On the shoulder of the CO₂ wall. Cloud-top height and air temperature aloft.'),
       band('GLM','Lightning, 777.4 nm', ctr(777.4,1),  '8 km',   'Geostationary Lightning Mapper. A 1 nm filter on the oxygen emission line that lightning gives off, read 500 times a second, day and night.')
+    ]
+  },
+  {
+    id:'viirs', name:'VIIRS', sub:'NPP + NOAA-20/21', on:true,
+    bands:[
+      band('M1','Deep blue',         rng(0.402,0.422), '750 m', 'Ocean colour and aerosols. Dissolved organic matter absorbs hardest at the violet end.'),
+      band('M2','Blue',              rng(0.436,0.454), '750 m', 'Chlorophyll absorption peak for ocean colour, plus aerosols.'),
+      band('M3','Blue',              rng(0.478,0.498), '750 m', 'Ocean colour and aerosols. The blue of true-colour imagery.'),
+      band('M4','Green',             rng(0.545,0.565), '750 m', 'Ocean colour near the green reflectance peak. True colour.'),
+      band('M5','Red',               rng(0.662,0.682), '750 m', 'Ocean colour, aerosols and vegetation.'),
+      band('M6','Atmospheric correction', rng(0.739,0.754), '750 m', 'Over open ocean almost nothing comes back from the water here, so whatever is seen is atmosphere to subtract.'),
+      band('M7','NIR',               rng(0.846,0.885), '750 m', 'Vegetation, aerosols over ocean and atmospheric correction.'),
+      band('M8','Cloud particle size', rng(1.230,1.250), '750 m', 'Cloud droplet size, and the strongest fire signal short of the mid-wave IR.'),
+      band('M9','Cirrus',            rng(1.371,1.386), '750 m', 'Thin cirrus detection inside the water vapour wall.'),
+      band('M10','Snow/ice',         rng(1.580,1.640), '750 m', 'Snow goes dark while water cloud stays bright.'),
+      band('M11','SWIR',             rng(2.225,2.275), '750 m', 'Cloud particle size, aerosols over bright land, and fire.'),
+      band('M12','Mid-wave IR',      rng(3.610,3.790), '750 m', 'Sea surface temperature at night, and fire.'),
+      band('M13','Fire',             rng(3.973,4.128), '750 m', 'Built not to saturate over flames, so it can measure fire radiative power.'),
+      band('M14','Cloud-top phase',  rng(8.400,8.700), '750 m', 'Ice versus liquid cloud tops, and surface emissivity.'),
+      band('M15','Longwave IR',      rng(10.263,11.263), '750 m', 'Sea and land surface temperature, cloud-top temperature.'),
+      band('M16','Longwave IR 2',    rng(11.538,12.488), '750 m', 'Split-window partner to M15, for atmospheric water vapour correction.'),
+    Object.assign(band('I1','Imagery red/visible', rng(0.600,0.680), '375 m',
+      'The sharp visible band. Cloud and surface detail at twice the M-band resolution.'), { under:true }),
+    Object.assign(band('I2','Imagery NIR', rng(0.846,0.885), '375 m',
+      'Same bandpass as M7 at twice the resolution. Vegetation and flood mapping.'), { under:true }),
+    Object.assign(band('I3','Imagery SWIR', rng(1.580,1.640), '375 m',
+      'Same bandpass as M10 at twice the resolution. Snow, ice and burn scars.'), { under:true }),
+    Object.assign(band('I4','Imagery mid-wave IR', rng(3.550,3.930), '375 m',
+      'The active fire band behind the 375 m VIIRS fire product. Small fires a coarser sensor misses.'), { under:true }),
+    Object.assign(band('I5','Imagery longwave IR', rng(10.50,12.40), '375 m',
+      'Cloud and surface temperature imagery, day and night.'), { under:true }),
+    Object.assign(band('DNB','Day/Night Band', rng(0.500,0.900), '750 m',
+      'Sensitive enough to image city lights, gas flares, fishing fleets and moonlit cloud. One wide band across the visible and near infrared.'), { pan:true, under:true })
     ]
   },
   {
@@ -2718,6 +2751,9 @@ var TOUR = [
   { t:'Weather satellites aim at the walls',
     b:'GOES hangs 35,786 km above the equator and images a whole hemisphere every ten minutes. Its imager does what a land mission never would: three bands sit inside the 6 to 7.5 µm water vapour wall on purpose, each at a different depth into it, so they map moisture at different heights instead of the ground. Two more follow the same idea: B12 is placed where ozone absorbs, so it can measure ozone, and B16 is placed where CO2 starts to absorb, which helps estimate how high cloud tops are.',
     v:[3.4, 14.5], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
+  { t:'Seeing by city light',
+    b:'At night there is almost no reflected sunlight to measure. The VIIRS Day/Night Band answers with width: one band spanning 0.5 to 0.9 µm, collecting every photon across the visible and near infrared. It handles light levels from full daylight down to a quarter moon, a range of about seven orders of magnitude, which is enough to map city lights, gas flares, fishing fleets and moonlit cloud. Compare it with the narrow M bands above it: they divide the light into slices to tell surfaces apart, while the Day/Night Band adds it all together so it can detect very faint light.',
+    v:[0.38, 1.0], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
   { t:'Radar brings its own light',
     b:'A SAR supplies its own illumination, so night and cloud stop mattering. Look at the widths: an optical band is a percent or more of its own wavelength, while a radar chirp is so pure it draws as a hairline at this scale. That purity is exactly what makes interferometry, and millimetre ground motion, possible.',
     v:[9000, 1.1e6], l:{atmos:true, reflect:false, planck:false}, idx:'none' },
